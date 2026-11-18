@@ -33,7 +33,7 @@ From the repository root, stop the local application and use a private local dir
 VEE_DATABASE=instance/recovered-001.sqlite3 .venv/bin/python -m vee.web
 ```
 
-Open the recovered workspace and check the last expected audit decision, quote version and total. Both operations open the source read-only and use SQLite’s backup API to capture committed state, including data in a write-ahead log. Before publishing the file, the CLI compares the schema with this code version and checks SQLite integrity and foreign keys. A private staging file and an exclusive hard link keep an existing destination intact. A failed check exits nonzero. Choose a different destination when repeating the drill.
+Open the recovered workspace and check the last expected audit decision, quote version and total. Both operations open the source read-only and use SQLite’s backup API to capture committed state, including data in a write-ahead log. Before publishing the file, the CLI compares the schema with this code version and checks SQLite integrity and foreign keys. It verifies essential enquiry and quote record shapes, reconciles audit revisions and quote versions, matches each saved quote version and total to its audit event, binds approved status to the recorded version and amount, and recomputes historical totals from saved line prices, quantities and the saved GST rate. A private staging file and an exclusive hard link keep an existing destination intact. A failed check exits nonzero. Choose a different destination when repeating the drill.
 
 The snapshot contains the entire synthetic database, including customer text and audit history. It is an unencrypted local file. The drill covers recovery into the same application schema. It does not supply off-machine retention, tenant-specific recovery or production disaster recovery. Tests exercise the round trip and rejection of invalid input via `python -m unittest tests.test_backup -v`.
 
@@ -54,7 +54,7 @@ A quote aggregates quantities per verified SKU and checks them against the synth
 
 ## Threat model and pilot design
 
-The local web layer binds its normal launcher to loopback, limits accepted hostnames and request size, verifies a per-session form token and checks an explicit Origin header when supplied. It sets a restrictive content security policy, disables response caching and sets browser content-type protections. Its signing key is generated at start-up, so a restart invalidates existing session forms. Local process or filesystem access still grants access to the synthetic workspace. It has no production secrets, live email transport, live vision processing or ERP client.
+The local web layer binds its normal launcher to loopback, limits accepted hostnames and request size, verifies a per-session form token and checks an explicit Origin header when supplied. It sets a restrictive content security policy, disables response caching and sets a same-origin referrer policy and browser content-type protections. Its signing key is generated at start-up, so a restart invalidates existing session forms. Local process or filesystem access still grants access to the synthetic workspace. It has no production secrets, live email transport, live vision processing or ERP client.
 
 Before any real business data enters the system, implement and verify the following design.
 
