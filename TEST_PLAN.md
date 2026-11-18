@@ -50,3 +50,17 @@ Use stable identifiers for each fixture and freeze source records with a dated v
 A qualified reviewer establishes expected product IDs, allowed alternatives, technical blockers, missing fields, acceptable questions and required escalation using dated catalogue evidence. A second reviewer adjudicates disputed labels. Keep a held-out set, prevent evidence leakage, and record reviewer, changes and reasons. Fixture-author labels can support deterministic regression checks while independent validation is pending.
 
 Report numerator, denominator and failures per component family. Track identification accuracy and top-k retrieval recall, attribute extraction accuracy including units, false exact-match recommendations, unsupported compatibility claims, missing-field detection precision/recall, deterministic quotation accuracy, workflow completion reliability, response time (median and p95), provider cost per enquiry and newly failing regressions. Include abstention and escalation rates so silence cannot inflate apparent accuracy. Report unavailable metrics explicitly. Any unsupported approval, incorrect golden total, unauthorised dispatch or tenant leak fails the release gate for the affected capability.
+
+## Recovery verification on 18 November 2026
+
+From the repository root with the documented environment installed, the following commands passed locally.
+
+```sh
+.venv/bin/ruff check vee tests scripts evaluation
+.venv/bin/mypy --check-untyped-defs vee evaluation
+.venv/bin/python -m unittest discover -v
+.venv/bin/python -m evaluation.run
+.venv/bin/python -m scripts.browser_smoke
+```
+
+The suite ran 33 tests. The fixed catalogue evaluation passed 51 cases and matched 7 independently specified expected totals. These are synthetic, author-labelled cases. In Chromium the incomplete cylinder order reached NZD 316.25, was rejected, revised to three cylinders at NZD 474.38 and approved. The smoke test also checks a new enquiry, an actual viewable synthetic photograph, saved status, edit guards, print rendering and narrow-screen width. The backup CLI tests exercise both corrupted and valid snapshots.

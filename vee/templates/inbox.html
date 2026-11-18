@@ -27,6 +27,7 @@
   <div class="queue-head">
     <div><div class="heading-row"><h2 id="enquiries-title">Enquiry inbox</h2><span class="count">{{ matching|length }}</span></div>
     <p class="subtle">Customer requests and their current workflow stage.</p></div>
+    <a class="button" href="{{ url_for('new_enquiry') }}">New enquiry</a>
     <form class="search" action="{{ url_for('inbox') }}" role="search">
       <input type="hidden" name="stage" value="{{ stage }}">
       {{ icon('search',17) }}<input type="search" name="q" value="{{ q }}" aria-label="Search subject, customer or enquiry ID" placeholder="Search enquiries…">

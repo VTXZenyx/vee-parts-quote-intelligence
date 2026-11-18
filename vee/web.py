@@ -4,6 +4,7 @@ import hmac
 import os
 import secrets
 from pathlib import Path
+from uuid import uuid4
 
 from flask import (
     Flask,
@@ -49,6 +50,31 @@ def create_app(database: Path | str | None = None) -> Flask:
         })
         return response
 
+    @app.before_request
+    def protect_mutations() -> None:
+        if request.method != "POST":
+            return
+        token = session.get("csrf")
+        if not token or not hmac.compare_digest(request.form.get("csrf", "").encode(), token.encode()):
+            abort(403)
+        if request.headers.get("Origin", request.host_url.rstrip("/")) != request.host_url.rstrip("/"):
+            abort(403)
+
+    @app.route("/enquiries/new", methods=["GET", "POST"])
+    def new_enquiry() -> Response | str | tuple[str, int]:
+        values = request.form
+        message_id = values.get("message_id", str(uuid4()))
+        if request.method == "POST":
+            try:
+                key = store.receive(path, values.get("message_id", ""), values.get("customer", ""),
+                                    values.get("subject", ""), values.get("body", ""))
+            except ValueError as error:
+                flash(str(error), "error")
+                return render_template("new.html", accounts=store.CUSTOMERS, values=values,
+                                       message_id=message_id), 422
+            return redirect(url_for("enquiry", id=key), code=303)
+        return render_template("new.html", accounts=store.CUSTOMERS, values=values, message_id=message_id)
+
     @app.get("/")
     def inbox() -> str:
         query = request.args.get("q", "").strip()
@@ -69,11 +95,6 @@ def create_app(database: Path | str | None = None) -> Flask:
 
     @app.post("/enquiries/<id>/actions")
     def perform(id: str) -> Response:
-        token = session.get("csrf")
-        if not token or not hmac.compare_digest(request.form.get("csrf", "").encode(), token.encode()):
-            abort(403)
-        if request.headers.get("Origin", request.host_url.rstrip("/")) != request.host_url.rstrip("/"):
-            abort(403)
         try:
             store.act(str(path), id, request.form.get("action", ""), request.form.to_dict())
         except KeyError:

@@ -67,3 +67,9 @@ Before any real business data enters the system, implement and verify the follow
 ## Planned integration boundaries
 
 A mailbox adapter accepts authorised provider events and normalises messages into immutable thread and attachment records. A worker extracts structured requirements with source locations. A retrieval adapter searches approved catalogue revisions, while category rules compare required and observed values and supply blocking reasons. A commercial adapter provides dated customer-specific price, stock and delivery evidence. The quotation engine consumes verified inputs, versions and rounds them deterministically, and submits a reviewable document. Only an authorised dispatch worker can transmit a reviewed document. Start with modular components in one codebase and introduce queues, model providers and separate services as their workloads justify them.
+
+## Synthetic intake
+
+GET and POST at `/enquiries/new` support local receipt of new requests. The form supplies a UUID per envelope. A SQLite write transaction checks for a matching receipt, compares the unchanged original content, allocates the enquiry number and records the first audit event. The server accepts accounts drawn from its synthetic fixtures. The shared origin and CSRF checks protect intake and review actions. The fixed fitting photograph in ENQ-1037 is a generated inspection fixture. No image-derived measurement enters the verifier.
+
+The backup check also compares the stored enquiry identity and revision with the state document, checks audit revision continuity and verifies quote versions against creation and edit events. These checks establish structural consistency within this application schema. They do not authenticate the authors of historical records.

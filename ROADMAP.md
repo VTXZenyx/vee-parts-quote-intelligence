@@ -17,3 +17,5 @@ The initial release targets a local, single-workspace employee workflow on synth
 ## Sequencing
 
 First close defects found in the employee workflow. Expand category rules, independent evaluation fixtures and mock ingestion while using synthetic data. Security qualification is a dependency for real data, provider authorisation is a dependency for real integrations, and release approval is a dependency for production deployment. Use [BACKLOG.md](BACKLOG.md) for individual tasks and acceptance criteria.
+
+The continuation milestone added local synthetic intake, replay checks and an inspectable photograph fixture. The next mailbox milestone is provider-shaped mock import with thread-aware duplicate and out-of-order handling. See the P1 acceptance criteria in BACKLOG.md.

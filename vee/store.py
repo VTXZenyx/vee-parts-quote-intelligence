@@ -6,6 +6,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import UUID
 
 from vee.catalogue import analyse, build_quote, current_record
 
@@ -24,6 +25,9 @@ SEEDS: tuple[tuple[str, str, str, str, list[dict[str, str]], str], ...] = (
      [{"name": "maintenance-note.txt", "text": "Synthetic maintenance note: part number unreadable."}], ""),
     ("ENQ-1038", "Coastal Fluid Systems", "Availability of NPT adapters",
      "Please quote 2 x ADP-NPT-14.", [], ""),
+    ("ENQ-1037", "Coastal Fluid Systems", "Unidentified hydraulic fitting",
+     "Please identify one hydraulic fitting from the attached photograph. We have no thread measurements.",
+     [{"name": "inspection-fitting.webp", "text": "Synthetic inspection photograph. Thread standard, size and pressure rating are unconfirmed."}], ""),
 )
 
 ALLOWED = {
@@ -91,7 +95,7 @@ REVISED_HEADER = "Revised request:"
 SERVICE_HAZARD = re.compile(
     r"\b(?:personnel|lifting|brak(?:e|es|ing)|safety|medical|oxygen|explosive|explosion|"
     r"flammable|hazardous|atex|food[- ](?:grade|contact)|human[- ]rated|load[- ]bearing)\b",
-    re.I,
+    re.IGNORECASE,
 )
 
 
@@ -148,16 +152,49 @@ def init(path: str | Path) -> None:
             if db.execute("SELECT 1 FROM enquiries WHERE id=?", (key,)).fetchone():
                 continue
             received = f"2026-11-17T{15-index:02d}:10:00+00:00"
-            item = {
-                "id": key, "customer": customer, "subject": subject, "body": body, "received_at": received,
-                "sender": "maintenance@" + customer.lower().replace(" ", "-") + ".example",
-                "attachments": attachments, "sample_reply": reply, "selected_sku": None,
-                "selected_skus": [], "revision": 1, "thread": [
-                    {"author": customer, "body": body, "at": received, "direction": "inbound"}],
-            }
-            _investigate(item)
-            db.execute("INSERT INTO enquiries VALUES (?,?,?)", (key, 1, json.dumps(item)))
-            _audit(db, item, "Mock mailbox", "received", "Synthetic customer enquiry recorded.", received)
+            _insert_enquiry(db, key, customer, subject, body, attachments, reply, received)
+
+
+CUSTOMERS = tuple(sorted({seed[1] for seed in SEEDS} | {"Contract Only Engineering"}))
+
+
+def _insert_enquiry(db, key, customer, subject, body, attachments, reply, received, message_id=None):
+    item = {
+        "id": key, "message_id": message_id, "customer": customer, "subject": subject, "body": body, "received_at": received,
+        "sender": "maintenance@" + customer.lower().replace(" ", "-") + ".example",
+        "attachments": attachments, "sample_reply": reply, "selected_sku": None,
+        "selected_skus": [], "revision": 1, "thread": [
+            {"author": customer, "body": body, "at": received, "direction": "inbound"}],
+    }
+    _investigate(item)
+    db.execute("INSERT INTO enquiries VALUES (?,?,?)", (key, 1, json.dumps(item)))
+    _audit(db, item, "Mock mailbox", "received", "Synthetic customer enquiry recorded.", received)
+
+
+def receive(path: str | Path, message_id: str, customer: str, subject: str, body: str) -> str:
+    """Record one local synthetic inbound envelope, atomically deduplicating retries."""
+    try:
+        message_id = str(UUID(message_id))
+    except (ValueError, AttributeError, TypeError) as error:
+        raise ValueError("Use a valid synthetic message identifier.") from error
+    if customer not in CUSTOMERS:
+        raise ValueError("Choose a synthetic account.")
+    subject = _text(subject, "a subject")
+    if len(subject) > 200:
+        raise ValueError("Limit the subject to 200 characters.")
+    body = _text(body, "the original request")
+    with _transaction(path, write=True) as db:
+        prior = db.execute("SELECT state FROM enquiries WHERE json_extract(state,'$.message_id')=?",
+                           (message_id,)).fetchone()
+        if prior:
+            saved = json.loads(prior["state"])
+            if (saved["customer"], saved["subject"], saved["body"]) != (customer, subject, body):
+                raise ValueError("This message was already received with different content.")
+            return saved["id"]
+        sequence = db.execute("SELECT coalesce(max(cast(substr(id,5) AS integer)),1042)+1 FROM enquiries").fetchone()[0]
+        key = f"ENQ-{sequence}"
+        _insert_enquiry(db, key, customer, subject, body, [], "", _now(), message_id)
+        return key
 
 
 def _load(db, key):

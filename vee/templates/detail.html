@@ -15,7 +15,7 @@
       <div class="section-heading">{{ icon('mail',20) }}<h2>Customer request</h2></div>
       <div class="message-top"><strong>{{ item.customer }}</strong><span>{{ item.sender }}</span></div>
       <p class="message-body">{{ item.body }}</p>
-      {% if item.attachments %}<div class="attachments"><h3>Attachments</h3>{% for attachment in item.attachments %}<details class="attachment"><summary>{{ icon('paperclip',15) }}{{ attachment.name }}</summary><p class="message-body">{{ attachment.text }}</p></details>{% endfor %}</div>{% endif %}
+      {% if item.attachments %}<div class="attachments"><h3>Attachments</h3>{% for attachment in item.attachments %}<details class="attachment"><summary>{{ icon('paperclip',15) }}{{ attachment.name }}</summary>{% if attachment.name == 'inspection-fitting.webp' %}<img class="inspection-photo" src="{{ url_for('static', filename='inspection-fitting.webp') }}" alt="Synthetic inspection photo of a worn fitting on a workshop bench">{% endif %}<p class="message-body">{{ attachment.text }}</p></details>{% endfor %}</div>{% endif %}
     </section>
     <section class="panel case-section" id="evidence">
       <div class="section-heading">{{ icon('list-check',20) }}<h2>Technical investigation</h2></div>
