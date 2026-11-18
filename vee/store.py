@@ -134,7 +134,7 @@ def _unresolved_subject(item, analysis):
                 return True
             mentioned.add(family)
             remainder = re.sub(family_pattern, " ", remainder, flags=re.IGNORECASE)
-    remainder = " ".join(remainder.strip(" .,:").casefold().split())
+    remainder = " ".join(remainder.strip(" ,:").rstrip(".").casefold().split())
     if not remainder:
         return False
     targets = [line for line in lines if not mentioned or line["family"] in mentioned]
@@ -143,7 +143,10 @@ def _unresolved_subject(item, analysis):
         return len(targets) != 1 or targets[0]["quantity"] != int(quantity[1])
     # Match the constraint on a single relevant line, never across products or
     # inside another reference. Ambiguous multi-line allocation needs clarification.
-    pattern = r"(?<![\w-])" + re.escape(remainder) + r"(?![\w-])"
+    # A digit inside a decimal or fraction cannot start or end a separate measurement.
+    start = r"(?<![\w.,/+−-])" if remainder[0].isdigit() else r"(?<![\w-])"
+    end = r"(?![\w-]|[.,/]\d)" if remainder[-1].isdigit() else r"(?![\w-])"
+    pattern = start + re.escape(remainder) + end
     matches = [line for line in targets if re.search(pattern, " ".join(line["text"].casefold().split()))]
     return len(matches) != 1 or len(mentioned) > 1
 
@@ -216,13 +219,13 @@ def init(path: str | Path) -> None:
             received = f"2026-11-17T{15-index:02d}:10:00+00:00"
             _insert_enquiry(db, key, customer, subject, body, attachments, reply, received)
 
-        if db.execute("PRAGMA user_version").fetchone()[0] == 0:
+        if db.execute("PRAGMA user_version").fetchone()[0] < 2:
             _recheck_legacy_decisions(db)
-            db.execute("PRAGMA user_version=1")
+            db.execute("PRAGMA user_version=2")
 
 
 def _recheck_legacy_decisions(db):
-    """Retain historical snapshots and explicitly reopen unsafe pre-audit decisions."""
+    """Retain historical snapshots and explicitly reopen unsafe decisions from earlier versions."""
     for row in db.execute("SELECT state FROM enquiries").fetchall():
         item = json.loads(row["state"])
         previous = item["extraction"]

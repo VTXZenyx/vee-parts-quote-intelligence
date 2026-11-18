@@ -83,22 +83,33 @@ class Intake(unittest.TestCase):
     def test_reopening_existing_unsafe_approval_keeps_history_and_invalidates_forms(self):
         import sqlite3
 
-        key = store.receive(self.path, str(uuid4()), "Kauri Engineering", "RFQ", "2 x ADP-BSPP-14")
-        item = store.detail(self.path, key)
-        for action, fields in [("verify_match", {"sku": "ADP-BSPP-14"}), ("create_quote", {}), ("approve_quote", {})]:
-            item = store.act(self.path, key, action, {"revision": item["revision"], **fields})
-        # Model an earlier application version which ignored the subject during verification.
-        with sqlite3.connect(self.path) as db:
-            db.execute("UPDATE enquiries SET state=json_set(state,'$.subject','For oxygen service') WHERE id=?", (key,))
-            db.execute("PRAGMA user_version=0")
-        store.init(self.path)
-        saved = store.detail(self.path, key)
-        self.assertEqual(saved["status"], "needs_clarification")
-        self.assertEqual(saved["revision"], item["revision"] + 1)
-        self.assertEqual(saved["history"][:-1], item["history"])
-        self.assertEqual(saved["quotes"], item["quotes"])
-        store.init(self.path)
-        self.assertEqual(store.detail(self.path, key), saved)
+        cases = [
+            (0, "For oxygen service", "2 x ADP-BSPP-14"),
+            (1, "Adapter 500 bar", "1 x ADP-BSPP-14, working pressure 0.500 bar"),
+        ]
+        for version, subject, body in cases:
+            with self.subTest(version=version):
+                key = store.receive(self.path, str(uuid4()), "Kauri Engineering", "RFQ", body)
+                item = store.detail(self.path, key)
+                for action, fields in [
+                    ("verify_match", {"sku": "ADP-BSPP-14"}),
+                    ("create_quote", {}),
+                    ("approve_quote", {}),
+                ]:
+                    item = store.act(self.path, key, action, {"revision": item["revision"], **fields})
+                # Model an earlier version which approved the enquiry despite its subject.
+                with sqlite3.connect(self.path) as db:
+                    db.execute("UPDATE enquiries SET state=json_set(state,'$.subject',?) WHERE id=?", (subject, key))
+                    db.execute(f"PRAGMA user_version={version}")
+                store.init(self.path)
+                saved = store.detail(self.path, key)
+                self.assertEqual(saved["status"], "needs_clarification")
+                self.assertEqual(saved["revision"], item["revision"] + 1)
+                self.assertEqual(saved["history"][:-1], item["history"])
+                self.assertEqual(saved["history"][-1]["action"], "recheck_requirements")
+                self.assertEqual(saved["quotes"], item["quotes"])
+                store.init(self.path)
+                self.assertEqual(store.detail(self.path, key), saved)
 
     def test_pressure_from_previous_unlabelled_reply_survives_reconciliation(self):
         key = store.receive(self.path, str(uuid4()), "Kauri Engineering", "RFQ", "2 hydraulic adapters")
@@ -118,4 +129,11 @@ class Intake(unittest.TestCase):
         body = "3 x BRG-6205-2RS\n1 x BLT-M12-80"
         for subject, expected in [("1 bearing", "needs_clarification"), ("3 bearings", "needs_verification")]:
             key = store.receive(self.path, str(uuid4()), "Kauri Engineering", subject, body)
+            self.assertEqual(store.detail(self.path, key)["status"], expected)
+
+    def test_subject_pressure_must_match_a_complete_measurement(self):
+        for subject, expected in [("Adapter 500 bar", "needs_clarification"),
+                                  ("Adapter 0.500 bar", "needs_verification")]:
+            key = store.receive(self.path, str(uuid4()), "Kauri Engineering", subject,
+                                "1 x ADP-BSPP-14, working pressure 0.500 bar")
             self.assertEqual(store.detail(self.path, key)["status"], expected)

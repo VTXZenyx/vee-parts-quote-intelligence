@@ -79,3 +79,9 @@ The audit started from the clean GitHub feature branch at `b9520a0`. All 33 exis
 The cylinder journey produced NZD 316.25 for two units and NZD 474.38 for the approved three-unit revision. A separate arithmetic cross-check used integer cents for quantities 1–3 across every ordered pair of five synthetic SKUs on the Harbour Packaging account. All 225 subtotals, GST values and gross totals matched.
 
 Review reproduced incorrect eligibility when technical conditions appeared only in a subject, when a revised request omitted the earlier pressure requirement and when assembly counts were ambiguous. Backup review found that consistent SQLite pages could still contain inconsistent financial or approval records. Browser inspection found overflow on valid long subjects. Regression tests cover these failures and database write rollback. The suite uses real local HTTP and SQLite and simulated business records. Production identity, external dispatch, arbitrary file intake, live technical data and business continuity remain separate acceptance gates.
+
+### Audit closeout
+
+The last independent review found that subject matching could accept `500 bar` inside `0.500 bar`. The matcher now requires a complete measurement. Startup also rechecks earlier approvals and records a new review event where necessary. The original quote and approval history remain available.
+
+The focused command `.venv/bin/python -m unittest tests.test_intake tests.test_store tests.test_backup -q` passed 37 tests after the fix. Ruff, mypy and `git diff --check` passed. A separate upgrade drill created an incorrect approval with commit `6334db9`, then confirmed that the updated code reopened the enquiry and preserved its audit and quote history through backup, restore and restart. The existing full-suite, evaluation and Chromium results above were recorded before this narrow fix.
