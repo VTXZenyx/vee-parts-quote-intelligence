@@ -1,6 +1,7 @@
 """Back up or restore a local synthetic VEE workspace to a new SQLite file."""
 
 import argparse
+import json
 import os
 import sqlite3
 import sys
@@ -8,7 +9,7 @@ import tempfile
 from contextlib import closing
 from pathlib import Path
 
-from vee.store import SCHEMA
+from vee.store import ALLOWED, SCHEMA
 
 
 def _verify_snapshot(database: sqlite3.Connection) -> None:
@@ -22,6 +23,36 @@ def _verify_snapshot(database: sqlite3.Connection) -> None:
         raise ValueError("SQLite integrity check failed.")
     if database.execute("PRAGMA foreign_key_check").fetchone() is not None:
         raise ValueError("The workspace contains a broken record reference.")
+
+
+    for key, revision, state in database.execute("SELECT id,revision,state FROM enquiries"):
+        item = json.loads(state)
+        if not isinstance(item, dict) or item.get("id") != key or item.get("revision") != revision:
+            raise ValueError("Enquiry state disagrees with its stored identity or revision.")
+        if (not isinstance(item.get("status"), str) or item["status"] not in ALLOWED or not isinstance(item.get("extraction"), dict)
+                or not isinstance(item["extraction"].get("lines"), list)
+                or not isinstance(item.get("thread"), list) or not item["thread"]
+                or not all(isinstance(item.get(field), str) for field in ("customer", "subject", "body", "sender"))):
+            raise ValueError("Incomplete enquiry state.")
+        audit = database.execute(
+            "SELECT count(*),min(revision),max(revision) FROM events WHERE enquiry_id=?", (key,)
+        ).fetchone()
+        if audit != (revision, 1, revision):
+            raise ValueError("Incomplete enquiry audit history.")
+        versions = database.execute(
+            "SELECT version,snapshot FROM quotes WHERE enquiry_id=? ORDER BY version", (key,)
+        )
+        count = 0
+        for count, (version, snapshot) in enumerate(versions, 1):
+            quote = json.loads(snapshot)
+            if (not isinstance(quote, dict) or version != count or quote.get("version") != version
+                    or not isinstance(quote.get("lines"), list) or not quote["lines"]):
+                raise ValueError("Incomplete quotation history.")
+        changes = database.execute(
+            "SELECT count(*) FROM events WHERE enquiry_id=? AND action IN ('create_quote','edit_quote')", (key,)
+        ).fetchone()[0]
+        if changes != count or (not count and item["status"] in {"approved", "draft_quote", "rejected"}):
+            raise ValueError("Quotation history disagrees with the workflow.")
 
 
 def _stop_if_busy(status: int, remaining: int, total: int) -> None:
