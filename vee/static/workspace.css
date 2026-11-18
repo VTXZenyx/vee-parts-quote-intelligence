@@ -75,7 +75,8 @@ th { background: #f5f7f3; font-size: .7rem; letter-spacing: .055em; text-transfo
 .inbox-table th:first-child, .inbox-table td:first-child { padding-left: 24px; }
 .inbox-table td:last-child { padding-right: 20px; }
 .inbox-table tr:focus-within, .inbox-table tbody tr:hover { background: #f8faf6; }
-.subject { width: 42%; }
+.subject { width: 42%; overflow-wrap: anywhere; }
+.subject a > span:last-child { min-width: 0; }
 .subject a { gap: 13px; text-decoration: none; }
 .subject a:hover strong { text-decoration: underline; }
 .subject strong { font-weight: 610; display: block; line-height: 1.35; font-size: .93rem; }
@@ -94,7 +95,7 @@ th { background: #f5f7f3; font-size: .7rem; letter-spacing: .055em; text-transfo
 .status-commercial_hold { color: #904335; background: #fae7df; }
 .row-open a { display: inline-grid; place-items: center; padding: 5px; border-radius: 5px; color: #718774; }
 .row-open a:hover { color: var(--green); background: #e8efe6; }
-.empty { padding: 38px 20px; text-align: center; }
+.empty { overflow-wrap: anywhere; padding: 38px 20px; text-align: center; }
 .empty-icon { padding: 10px; background: #edf2e8; margin-bottom: 12px; }
 .empty p { color: var(--muted); margin: 6px 0 12px; }
 .text-link { display: inline-flex; gap: 4px; font-weight: 600; font-size: .89rem; color: var(--green); }
@@ -110,7 +111,7 @@ th { background: #f5f7f3; font-size: .7rem; letter-spacing: .055em; text-transfo
 .case-head { padding: 22px 26px; background: #ecf2ea; border: 1px solid #d1dece; border-radius: 12px; margin-bottom: 18px; }
 .case-state,.case-meta { flex-wrap: wrap; gap: 11px; }
 .case-id { color: #3e6450; font-size: .8rem; font-weight: 650; }
-.case-head h1 { margin: 10px 0; font-size: clamp(1.8rem,3.1vw,3rem); font-weight: 600; }
+.case-head h1 { overflow-wrap: anywhere; margin: 10px 0; font-size: clamp(1.8rem,3.1vw,3rem); font-weight: 600; }
 .case-meta { gap: 8px 20px; color: #4d6456; font-size: .85rem; }
 .case-meta span,.breadcrumb a { gap: 6px; }
 .case-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(300px,.46fr); align-items: start; gap: 18px; }

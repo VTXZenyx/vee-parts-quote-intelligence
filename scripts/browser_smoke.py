@@ -8,6 +8,7 @@ from threading import Thread
 from playwright.sync_api import Page, expect, sync_playwright
 from werkzeug.serving import make_server
 
+from scripts.browser_review import exercise_review
 from vee.web import create_app
 
 
@@ -78,12 +79,15 @@ def main() -> None:
         try:
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch(executable_path=shutil.which("chromium"))
-                page = browser.new_page(viewport={"width": 1366, "height": 900})
+                context = browser.new_context(viewport={"width": 1366, "height": 900})
+                page = context.new_page()
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.on("response", lambda r: errors.append(f"{r.status} {r.url}")
                         if r.status >= 400 and "/static/" in r.url else None)
-                exercise(page, f"http://127.0.0.1:{server.server_port}")
+                address = f"http://127.0.0.1:{server.server_port}"
+                exercise(page, address)
+                exercise_review(page, address)
                 assert not errors, errors
                 browser.close()
             print("Browser workflow and mobile layout checks passed.")
