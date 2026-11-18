@@ -46,3 +46,94 @@ class Intake(unittest.TestCase):
         with self.client.get("/static/inspection-fitting.webp") as picture:
             self.assertEqual(picture.status_code, 200)
             self.assertEqual(picture.data[8:12], b"WEBP")
+
+    def test_governing_subject_conditions_block_verification(self):
+        for subject, body in [
+            ("Personnel lifting", "2 x CYL-32-100-DA"),
+            ("Hydraulic adapter, 350 bar working pressure", "2 x ADP-BSPP-14"),
+            ("Qty 12 bearings", "2 x BRG-6205-2RS"),
+            ("For continuous immersion", "2 x BRG-6205-2RS"),
+            ("Bolt enquiry", "2 x BRG-6205-2RS"),
+        ]:
+            with self.subTest(subject=subject):
+                key = store.receive(self.path, str(uuid4()), "Kauri Engineering", subject, body)
+                item = store.detail(self.path, key)
+                self.assertEqual(item["status"], "needs_clarification")
+                with self.assertRaises(ValueError):
+                    store.act(self.path, key, "verify_match", {"revision": 1, "sku": body.split()[-1]})
+
+    def test_bearing_subject_and_explicit_reference_in_body(self):
+        for subject in ("Bearing enquiry", "BRG-6205-2RS", "Request for quotation"):
+            key = store.receive(self.path, str(uuid4()), "Kauri Engineering", subject, "2 x BRG-6205-2RS")
+            self.assertEqual(store.detail(self.path, key)["status"], "needs_verification")
+
+    def test_revised_reference_requires_resolution_of_prior_pressure(self):
+        key = store.receive(self.path, str(uuid4()), "Kauri Engineering", "Quotation",
+                            "2 x ADP-BSPP-14, working pressure 350 bar")
+        item = store.detail(self.path, key)
+        for body, expected in [
+            ("Revised request: 2 x ADP-BSPP-14", "needs_clarification"),
+            ("Revised request: 2 x ADP-BSPP-14, working pressure 200 bar", "needs_verification"),
+        ]:
+            for action, fields in [("approve_clarification", {}), ("simulate_reply", {"body": body}),
+                                   ("reconcile_requirements", {"reason": "Checked customer revision."})]:
+                item = store.act(self.path, key, action, {"revision": item["revision"], **fields})
+            self.assertEqual(item["status"], expected)
+
+    def test_reopening_existing_unsafe_approval_keeps_history_and_invalidates_forms(self):
+        import sqlite3
+
+        cases = [
+            (0, "For oxygen service", "2 x ADP-BSPP-14"),
+            (1, "Adapter 500 bar", "1 x ADP-BSPP-14, working pressure 0.500 bar"),
+        ]
+        for version, subject, body in cases:
+            with self.subTest(version=version):
+                key = store.receive(self.path, str(uuid4()), "Kauri Engineering", "RFQ", body)
+                item = store.detail(self.path, key)
+                for action, fields in [
+                    ("verify_match", {"sku": "ADP-BSPP-14"}),
+                    ("create_quote", {}),
+                    ("approve_quote", {}),
+                ]:
+                    item = store.act(self.path, key, action, {"revision": item["revision"], **fields})
+                # Model an earlier version which approved the enquiry despite its subject.
+                with sqlite3.connect(self.path) as db:
+                    db.execute("UPDATE enquiries SET state=json_set(state,'$.subject',?) WHERE id=?", (subject, key))
+                    db.execute(f"PRAGMA user_version={version}")
+                store.init(self.path)
+                saved = store.detail(self.path, key)
+                self.assertEqual(saved["status"], "needs_clarification")
+                self.assertEqual(saved["revision"], item["revision"] + 1)
+                self.assertEqual(saved["history"][:-1], item["history"])
+                self.assertEqual(saved["history"][-1]["action"], "recheck_requirements")
+                self.assertEqual(saved["quotes"], item["quotes"])
+                store.init(self.path)
+                self.assertEqual(store.detail(self.path, key), saved)
+
+    def test_pressure_from_previous_unlabelled_reply_survives_reconciliation(self):
+        key = store.receive(self.path, str(uuid4()), "Kauri Engineering", "RFQ", "2 hydraulic adapters")
+        item = store.detail(self.path, key)
+        for action, fields in [
+            ("approve_clarification", {}),
+            ("simulate_reply", {"body": "Working pressure 350 bar."}),
+            ("approve_clarification", {}),
+            ("simulate_reply", {"body": "Revised request: 2 x ADP-BSPP-14"}),
+            ("reconcile_requirements", {"reason": "Customer identified the reference."}),
+        ]:
+            item = store.act(self.path, key, action, {"revision": item["revision"], **fields})
+        self.assertEqual(item["status"], "needs_clarification")
+        self.assertIn("pressure", item["clarification"])
+
+    def test_subject_quantity_cannot_be_satisfied_by_an_unrelated_line(self):
+        body = "3 x BRG-6205-2RS\n1 x BLT-M12-80"
+        for subject, expected in [("1 bearing", "needs_clarification"), ("3 bearings", "needs_verification")]:
+            key = store.receive(self.path, str(uuid4()), "Kauri Engineering", subject, body)
+            self.assertEqual(store.detail(self.path, key)["status"], expected)
+
+    def test_subject_pressure_must_match_a_complete_measurement(self):
+        for subject, expected in [("Adapter 500 bar", "needs_clarification"),
+                                  ("Adapter 0.500 bar", "needs_verification")]:
+            key = store.receive(self.path, str(uuid4()), "Kauri Engineering", subject,
+                                "1 x ADP-BSPP-14, working pressure 0.500 bar")
+            self.assertEqual(store.detail(self.path, key)["status"], expected)

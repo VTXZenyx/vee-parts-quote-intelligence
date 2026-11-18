@@ -8,6 +8,7 @@ from threading import Thread
 from playwright.sync_api import Page, expect, sync_playwright
 from werkzeug.serving import make_server
 
+from scripts.browser_review import exercise_review
 from vee.web import create_app
 
 
@@ -19,10 +20,10 @@ def exercise(page: Page, address: str) -> None:
     page.goto(address)
     page.get_by_role("link", name="New enquiry").click()
     page.get_by_label("Synthetic account").select_option("Kauri Engineering")
-    page.get_by_label("Enquiry subject").fill("Browser intake check")
+    page.get_by_label("Enquiry subject").fill("Bearing quotation")
     page.get_by_label("Original request").fill("Please quote 2 x BRG-6205-2RS.")
     page.get_by_role("button", name="Receive enquiry").click()
-    expect(page.get_by_role("heading", name="Browser intake check")).to_be_visible()
+    expect(page.get_by_role("heading", name="Bearing quotation")).to_be_visible()
     expect(page.get_by_role("button", name="Verify match", exact=True)).to_be_visible()
     page.goto(address + "/enquiries/ENQ-1037")
     page.get_by_text("inspection-fitting.webp", exact=True).click()
@@ -78,12 +79,15 @@ def main() -> None:
         try:
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch(executable_path=shutil.which("chromium"))
-                page = browser.new_page(viewport={"width": 1366, "height": 900})
+                context = browser.new_context(viewport={"width": 1366, "height": 900})
+                page = context.new_page()
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.on("response", lambda r: errors.append(f"{r.status} {r.url}")
                         if r.status >= 400 and "/static/" in r.url else None)
-                exercise(page, f"http://127.0.0.1:{server.server_port}")
+                address = f"http://127.0.0.1:{server.server_port}"
+                exercise(page, address)
+                exercise_review(page, address)
                 assert not errors, errors
                 browser.close()
             print("Browser workflow and mobile layout checks passed.")

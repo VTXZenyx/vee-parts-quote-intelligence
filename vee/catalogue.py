@@ -176,7 +176,7 @@ COURTESY = re.compile(
     r"\b(?:hi|hello|please|thanks|thank you|we urgently need|we need|i need|need|urgent(?:ly)?|"
     r"could you (?:please )?quote|quote(?: for)?|replacement|as shown in the attachment|"
     r"for our packaging machine|the label has worn off|label unreadable|"
-    r"and|with|units|each)\b",
+    r"and|with|units)\b",
     re.IGNORECASE,
 )
 HIGH_RISK = re.compile(
@@ -241,7 +241,9 @@ def _line_texts(text: str) -> list[tuple[str, bool]]:
         rf"(?:{COUNT} +)?(?:[x×] *|(?:replacement +)?{NOUN}\b|(?:cyl|brg|blt|adp)-)"
     )
     paragraphs = re.split(
-        rf"[\n;]+| +(?:and|plus|also|with) +(?={starter})", normal, flags=re.IGNORECASE
+        rf"[\n;]+|, *(?={NOUN}\b)| +(?:and|plus|also|with) +(?={starter})",
+        normal,
+        flags=re.IGNORECASE,
     )
     groups: list[list[str]] = []
     ambiguous: set[int] = set()
@@ -296,11 +298,16 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
         nonlocal residual
 
         def substitute(m: re.Match[str]) -> str:
-            value = (
-                fixed
-                if fixed is not None
-                else next(s for s in m.groups() if s is not None) + suffix
-            )
+            if fixed is None:
+                number = next(s for s in m.groups() if s is not None)
+                if suffix:
+                    # Strip formatting zeros without rounding a measurement to decimal context precision.
+                    number = format(Decimal(number), "f")
+                    if "." in number:
+                        number = number.rstrip("0").rstrip(".")
+                value = number + suffix
+            else:
+                value = fixed
             found.setdefault(field, set()).add(value)
             return " "
 
@@ -361,9 +368,7 @@ def _compatible(key: str, value: str, part: Part) -> bool:
 
 def _analyse_line(text: str, account: str, ambiguous: bool) -> Record:
     normal = text.lower().replace("–", "-").replace("‑", "-")
-    references = list(
-        dict.fromkeys(m.group().upper() for m in REFERENCE.finditer(normal))
-    )
+    references = [m.group().upper() for m in REFERENCE.finditer(normal)]
     families = {
         f
         for f, pattern in FAMILIES.items()
@@ -499,6 +504,15 @@ def analyse(text: str, account: str = "") -> Record:
         _analyse_line(chunk, account, ambiguous)
         for chunk, ambiguous in _line_texts(text)
     ]
+    if len(lines) > 1 and re.search(r"\b(?:each|per|apiece)\b", text, re.IGNORECASE):
+        for line in lines:
+            line.update(status="review", sku=None, quantity=None)
+            line["issues"].append(
+                "The quantities may be per assembly rather than totals."
+            )
+            line["questions"].append(
+                "Please confirm the total quantity of each reference across all assemblies."
+            )
     requested: Counter[str] = Counter()
     for line in lines:
         if line["sku"]:

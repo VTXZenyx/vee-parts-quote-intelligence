@@ -3,6 +3,7 @@
 import hmac
 import os
 import secrets
+import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
@@ -49,6 +50,11 @@ def create_app(database: Path | str | None = None) -> Flask:
             "Referrer-Policy": "same-origin",
         })
         return response
+
+    @app.errorhandler(sqlite3.DatabaseError)
+    def database_unavailable(error: sqlite3.DatabaseError) -> tuple[str, int]:
+        app.logger.error("Workspace database operation failed (%s)", getattr(error, "sqlite_errorname", "SQLITE_ERROR"))
+        return render_template("unavailable.html"), 503
 
     @app.before_request
     def protect_mutations() -> None:

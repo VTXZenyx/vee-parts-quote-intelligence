@@ -9,3 +9,7 @@ Recovered the uncommitted Flask and SQLite application from the interrupted deve
 - Added an unidentified fitting photograph fixture. Opening the photograph leaves specification and pricing decisions under the existing evidence and approval rules.
 - Independent review of the initial implementation identified stale technical evidence, silently discarded same-family items and approval with unsaved edits. The recovered code blocks those cases. Browser testing also found an origin-policy conflict and a narrow-screen overflow, both corrected.
 - The recovery baseline ran 30 tests with two failing backup subtests. After corrections and intake coverage, 33 tests passed and all 51 author-labelled industrial regression cases passed. Chromium exercised intake, photograph display, confirmation, rejection, revision, print layout and approval. Lint and type checks passed locally. Real connectors and authenticated multi-business operation remain open.
+
+### Full-system audit
+
+The audit reproduced the original 33-test and 51-case baseline, then added coverage for unsafe product allocation, uncertain subject requirements, pressure limits across replies and recovery of historical approvals. Technical decisions retain the reviewed specifications and provenance. A one-time upgrade reopens unsafe cached decisions with an audit event and keeps their quote history. Database write failures now explain how to recover. Long subjects wrap on small screens. The verified audit totals and commands are in [TEST_PLAN.md](TEST_PLAN.md).
