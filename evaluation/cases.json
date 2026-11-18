@@ -49,5 +49,15 @@
   {"id":"unquantified-second-item-3","text":"2 x BRG-6205-2RS and BRG-6205-2RS","status":["verified","clarify"],"skus":["BRG-6205-2RS",null],"ready":false,"missing":["quantity"]},
   {"id":"unquantified-second-item-4","text":"2 x BRG-6205-2RS; bearing","status":["verified","clarify"],"skus":["BRG-6205-2RS",null],"ready":false,"missing":["quantity"]},
   {"id":"unquantified-second-item-5","text":"2 x CYL-32-100-DA with cylinder","status":["verified","clarify"],"skus":["CYL-32-100-DA",null],"ready":false,"missing":["quantity"]},
-  {"id":"unquantified-second-item-6","text":"2 x BRG-6205-2RS\nbearing","status":["verified","clarify"],"skus":["BRG-6205-2RS",null],"ready":false,"missing":["quantity"]}
+  {"id":"unquantified-second-item-6","text":"2 x BRG-6205-2RS\nbearing","status":["verified","clarify"],"skus":["BRG-6205-2RS",null],"ready":false,"missing":["quantity"]},
+  {"id":"nested-quantities","text":"2 x CYL-32-100-DA, each with 2 x ADP-BSPP-14","status":["review","review"],"skus":[null,null],"ready":false,"missing":["total quantity"]},
+  {"id":"nested-quantities-sentences","text":"2 x BRG-6205-2RS. Each with 3 x BLT-M12-80.","status":["review","review"],"skus":[null,null],"ready":false,"missing":["total quantity"]},
+  {"id":"per-item-quantity","text":"2 x CYL-32-100-DA and 2 x ADP-BSPP-14 per cylinder","status":["review","review"],"skus":[null,null],"ready":false},
+  {"id":"repeated-code-comma","text":"2 x BRG-6205-2RS, BRG-6205-2RS","status":["conflict"],"skus":[null],"ready":false},
+  {"id":"repeated-code-space","text":"2 x CYL-32-100-DA CYL-32-100-DA","status":["conflict"],"skus":[null],"ready":false},
+  {"id":"normalised-mm","text":"2 x CYL-32-100-DA, bore: 32.0 mm","status":["verified"],"skus":["CYL-32-100-DA"],"ready":true,"attributes":{"bore":"32 mm"},"total":"356.50"},
+  {"id":"leading-zero-mm","text":"2 x CYL-32-100-DA, bore 032 mm","status":["verified"],"skus":["CYL-32-100-DA"],"ready":true,"attributes":{"bore":"32 mm"},"total":"356.50"},
+  {"id":"unrounded-measurement","text":"2 x CYL-32-100-DA, bore 32.000000000000000000000000000000001 mm","status":["conflict"],"skus":[null],"ready":false},
+  {"id":"ambiguous-comma-list","text":"2 x CYL-32-100-DA, cylinder","status":["verified","clarify"],"skus":["CYL-32-100-DA",null],"ready":false},
+  {"id":"explicit-incompatible-unit","text":"2 x CYL-32-100-DA, bore 32.0 in","status":["review"],"skus":[null],"ready":false}
 ]
