@@ -1,0 +1,33 @@
+{% set labels = {
+    'needs_clarification': 'Clarification needed', 'awaiting_reply': 'Awaiting reply',
+    'needs_verification': 'Technical review', 'verified': 'Match verified',
+    'draft_quote': 'Draft quotation', 'approved': 'Approved',
+    'rejected': 'Revision requested', 'commercial_hold': 'Commercial hold'
+} %}
+
+{% macro icon(name, size=18) -%}
+<svg class="icon" width="{{ size }}" height="{{ size }}" aria-hidden="true" focusable="false"><use href="{{ url_for('static', filename='icons.svg') }}#{{ name }}"></use></svg>
+{%- endmacro %}
+
+{% macro status(value) -%}
+<span class="status status-{{ value }}"><span aria-hidden="true"></span>{{ labels.get(value, value|replace('_', ' ')|capitalize) }}</span>
+{%- endmacro %}
+
+{% macro date(value, time=false) -%}
+{% if value %}{% set months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] %}<time datetime="{{ value }}">{{ value[8:10]|int }} {{ months[(value[5:7]|int)-1] }} {{ value[:4] }}{% if time %} · {{ value[11:16] }} UTC{% endif %}</time>{% endif %}
+{%- endmacro %}
+
+{% macro identity(item, csrf) -%}
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="revision" value="{{ item.revision }}">
+{%- endmacro %}
+
+{% macro reject(item, csrf, action, title) -%}
+<details class="reject no-print"><summary>{{ title }}</summary>
+  <form method="post" action="{{ url_for('perform', id=item.id) }}">
+    {{ identity(item, csrf) }}
+    <label for="reason-{{ action }}">Reason for rejection</label>
+    <textarea id="reason-{{ action }}" name="reason" rows="2" maxlength="8000" required></textarea>
+    <button class="button danger" name="action" value="{{ action }}">Record rejection</button>
+  </form>
+</details>
+{%- endmacro %}

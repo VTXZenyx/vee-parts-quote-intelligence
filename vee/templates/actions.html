@@ -1,0 +1,54 @@
+{% set post = url_for('perform', id=item.id) %}
+{% if item.status == 'needs_clarification' %}
+  <h2>Review clarification</h2><p>Check the missing requirements and approve the questions for the mock mailbox.</p>
+  {% if item.revised_request %}<details class="reconcile" open><summary>Revised customer request</summary>
+    <p class="message-body">{{ item.revised_request }}</p><form action="{{ post }}" method="post">{{ identity(item, csrf) }}
+    <label for="reconcile-reason">Reason for replacing the previous requirements</label><textarea id="reconcile-reason" name="reason" rows="2" maxlength="8000" required></textarea>
+    <button name="action" value="reconcile_requirements" class="button">Confirm revised request</button></form></details>{% endif %}
+  <form action="{{ post }}" method="post">{{ identity(item, csrf) }}
+    <label for="clarification">Clarification draft</label><textarea id="clarification" name="body" rows="7" maxlength="8000" required>{{ item.clarification }}</textarea>
+    <div class="stack"><button name="action" value="approve_clarification" class="button primary">{{ icon('check',16) }}Approve clarification</button>
+    <button name="action" value="save_clarification" class="button">Save draft</button></div>
+  </form>{{ reject(item, csrf, 'reject_clarification', 'Reject clarification draft') }}
+{% elif item.status == 'awaiting_reply' %}
+  <h2>Awaiting customer reply</h2><p>Record a synthetic response to continue the investigation.</p>
+  <form action="{{ post }}" method="post">{{ identity(item, csrf) }}
+    <label for="reply">Synthetic customer reply</label><textarea id="reply" name="body" rows="5" maxlength="8000" required>{{ item.sample_reply }}</textarea>
+    <p class="hint">For a complete replacement, start with “Revised request:” and list every product and quantity.</p>
+    <button class="button primary" name="action" value="simulate_reply">{{ icon('mail',16) }}Record mock reply</button>
+  </form>
+{% elif item.status == 'needs_verification' %}
+  <h2>Verify catalogue match</h2><p>Review the source specifications and confirm each proposed product.</p>
+  <form action="{{ post }}" method="post">{{ identity(item, csrf) }}
+    {% for line in item.extraction.lines %}<label class="confirm"><input type="checkbox" name="sku_{{ loop.index0 }}" value="{{ line.sku }}" required><span>Confirm <strong class="mono">{{ line.sku }}</strong></span></label>{% endfor %}
+    <button name="action" value="verify_match" class="button primary">{{ icon('check',16) }}Verify match{{ 'es' if item.extraction.lines|length > 1 }}</button>
+  </form>{{ reject(item, csrf, 'reject_match', 'Reject proposed match') }}
+{% elif item.status == 'verified' %}
+  <h2>Prepare quotation</h2><p>The selected products have been verified. Create a draft using the synthetic account prices and stock records.</p>
+  <form action="{{ post }}" method="post">{{ identity(item, csrf) }}<button name="action" value="create_quote" class="button primary">{{ icon('document-check',16) }}Create draft quotation</button></form>
+{% elif item.status in ['draft_quote','rejected'] %}
+  {% set quote = item.quotes|last %}
+  <h2>{{ 'Review quotation' if item.status == 'draft_quote' else 'Revise quotation' }}</h2>
+  <p>Version {{ quote.version }} totals <strong>{{ quote.currency }} {{ quote.total }}</strong> including GST.</p>
+  {% if item.status == 'draft_quote' %}<form class="approval" action="{{ post }}" method="post">{{ identity(item, csrf) }}<button name="action" value="approve_quote" class="button primary">{{ icon('check',16) }}Approve version {{ quote.version }}</button></form>{% endif %}
+  <details class="edit" {% if item.status == 'rejected' %}open{% endif %}><summary>Edit quotation</summary>
+    <form action="{{ post }}" method="post" data-quote-editor>{{ identity(item, csrf) }}
+      {% for line in quote.lines %}<label for="qty-{{ loop.index }}">Quantity · {{ line.sku }}</label><input id="qty-{{ loop.index }}" type="number" min="1" step="1" name="quantity_{{ line.sku }}" value="{{ line.quantity }}" required>{% endfor %}
+      <label for="notes">Quotation notes</label><textarea id="notes" name="notes" rows="3" maxlength="8000">{{ quote.notes }}</textarea>
+      <button name="action" value="edit_quote" class="button">Save new version</button>
+      <button type="reset" class="button">Discard edits</button>
+    </form>
+  </details>
+  <p class="hint" data-unsaved hidden>Save or discard your edits before approving this quotation.</p>
+  {% if item.status == 'draft_quote' %}{{ reject(item, csrf, 'reject_quote', 'Reject this quotation') }}{% endif %}
+{% elif item.status == 'approved' %}
+  <h2>Quotation approved</h2><p>Version {{ item.quotes[-1].version }} has employee approval. The quotation is available to print.</p>
+  <a class="button" href="#quotation">{{ icon('document-check',16) }}View approved quotation</a>
+{% elif item.status == 'commercial_hold' %}
+  <h2>Commercial hold</h2><p>Review the outstanding stock or pricing issues in the technical investigation before a quotation can progress.</p><a href="#evidence" class="button">Review issues {{ icon('arrow-right',15) }}</a>
+{% endif %}
+
+{% if item.status in ['needs_verification','verified','draft_quote','rejected','commercial_hold'] %}
+<details class="refresh"><summary>Refresh catalogue evidence</summary><p>Recheck the current records. Existing quotes stay in the history and products will need a new review.</p>
+  <form action="{{ post }}" method="post">{{ identity(item, csrf) }}<button class="button" name="action" value="refresh_evidence">Refresh evidence</button></form>
+</details>{% endif %}

@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}New synthetic enquiry{% endblock %}
+{% block content %}
+<nav class="breadcrumb"><a href="{{ url_for('inbox') }}">← Enquiry inbox</a></nav>
+<section class="panel case-section action-panel intake">
+<h1>New synthetic enquiry</h1>
+<p>Enter a sample customer request to investigate it against the local catalogue.</p>
+<form method="post">
+<input name="csrf" type="hidden" value="{{ csrf }}"><input name="message_id" type="hidden" value="{{ message_id }}">
+<label for="account">Synthetic account</label>
+<select name="customer" id="account" required><option value="">Choose an account</option>{% for account in accounts %}<option{% if values.get('customer') == account %} selected{% endif %}>{{ account }}</option>{% endfor %}</select>
+<label for="subject">Enquiry subject</label><input id="subject" name="subject" maxlength="200" required value="{{ values.get('subject','') }}">
+<label for="body">Original request</label><textarea id="body" name="body" rows="6" maxlength="8000" required>{{ values.get('body','') }}</textarea>
+<button class="button primary">Receive enquiry</button>
+</form>
+</section>
+{% endblock %}
