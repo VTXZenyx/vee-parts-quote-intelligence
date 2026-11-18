@@ -116,7 +116,7 @@ HEADING_WORDS = re.compile(
 )
 
 
-def _unresolved_subject(item, content, analysis):
+def _unresolved_subject(item, analysis):
     subject = item["subject"]
     if SERVICE_HAZARD.search(subject):
         return True
@@ -124,17 +124,28 @@ def _unresolved_subject(item, content, analysis):
     if not item.get("message_id") and any(item["id"] == seed[0] and subject == seed[2] for seed in SEEDS):
         return False
     remainder = HEADING_WORDS.sub(" ", subject)
-    families = {line["family"] for line in analysis["lines"]}
+    lines = analysis["lines"]
+    families = {line["family"] for line in lines}
+    mentioned = set()
     for family, pattern in FAMILIES.items():
-        if family in families:
-            remainder = re.sub(r"\b(?:" + pattern + r")\b", " ", remainder, flags=re.IGNORECASE)
+        family_pattern = r"\b(?:" + pattern + r")\b"
+        if re.search(family_pattern, remainder, re.IGNORECASE):
+            if family not in families:
+                return True
+            mentioned.add(family)
+            remainder = re.sub(family_pattern, " ", remainder, flags=re.IGNORECASE)
     remainder = " ".join(remainder.strip(" .,:").casefold().split())
     if not remainder:
         return False
-    # Do not accept a prefix of a different reference or number. The body parser
-    # must have evaluated the same words together in the current request.
+    targets = [line for line in lines if not mentioned or line["family"] in mentioned]
+    quantity = re.fullmatch(r"(?:(?:qty|quantity)\s*[:=]?\s*)?(\d{1,4})", remainder)
+    if quantity:
+        return len(targets) != 1 or targets[0]["quantity"] != int(quantity[1])
+    # Match the constraint on a single relevant line, never across products or
+    # inside another reference. Ambiguous multi-line allocation needs clarification.
     pattern = r"(?<![\w-])" + re.escape(remainder) + r"(?![\w-])"
-    return not re.search(pattern, " ".join(content.casefold().split()))
+    matches = [line for line in targets if re.search(pattern, " ".join(line["text"].casefold().split()))]
+    return len(matches) != 1 or len(mentioned) > 1
 
 
 def _omitted_attributes(previous, active, account):
@@ -174,7 +185,7 @@ def _investigate(item):
     if any(SERVICE_HAZARD.search(message) for message in messages[:basis]):
         _require_review(analysis, "The earlier enquiry contains conditions requiring a qualified technical reviewer.",
                         "Please refer the full enquiry history to a qualified technical reviewer.")
-    if _unresolved_subject(item, content, analysis):
+    if _unresolved_subject(item, analysis):
         _require_review(analysis, "The subject contains requirements not resolved in the active request.",
                         "Please confirm the subject requirements in the complete request and refer special service conditions to a technical reviewer.")
     if basis:

@@ -113,3 +113,9 @@ class Intake(unittest.TestCase):
             item = store.act(self.path, key, action, {"revision": item["revision"], **fields})
         self.assertEqual(item["status"], "needs_clarification")
         self.assertIn("pressure", item["clarification"])
+
+    def test_subject_quantity_cannot_be_satisfied_by_an_unrelated_line(self):
+        body = "3 x BRG-6205-2RS\n1 x BLT-M12-80"
+        for subject, expected in [("1 bearing", "needs_clarification"), ("3 bearings", "needs_verification")]:
+            key = store.receive(self.path, str(uuid4()), "Kauri Engineering", subject, body)
+            self.assertEqual(store.detail(self.path, key)["status"], expected)
