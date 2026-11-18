@@ -52,3 +52,22 @@ class WorkspaceRoutes(unittest.TestCase):
         saved = store.detail(database, "ENQ-1042")
         self.assertEqual(saved["revision"], initial["revision"] + 1)
         self.assertEqual(saved["status"], "needs_clarification")
+
+    def test_failed_database_write_explains_recovery_and_keeps_state(self):
+        import sqlite3
+
+        from vee import store
+
+        key = "ENQ-1042"
+        self.client.get("/")
+        with self.client.session_transaction() as session:
+            token = session["csrf"]
+        original = store.detail(self.database, key)
+        with sqlite3.connect(self.database) as db:
+            db.execute("CREATE TRIGGER fail_write BEFORE INSERT ON events BEGIN SELECT RAISE(ABORT,'audit failure'); END")
+        result = self.client.post(f"/enquiries/{key}/actions", data={
+            "csrf": token, "revision": original["revision"], "action": "approve_clarification",
+        })
+        self.assertEqual(result.status_code, 503)
+        self.assertIn(b"Reload the enquiry", result.data)
+        self.assertEqual(store.detail(self.database, key), original)

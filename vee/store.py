@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from vee.catalogue import analyse, build_quote, current_record
+from vee.catalogue import FAMILIES, analyse, build_quote, current_record
 
 SEEDS: tuple[tuple[str, str, str, str, list[dict[str, str]], str], ...] = (
     ("ENQ-1042", "Harbour Packaging", "Replacement cylinders for packaging line",
@@ -108,6 +108,48 @@ def _require_review(analysis, issue, question):
     analysis["ready"] = False
 
 
+# Headings may repeat a request, name its family, or contain additional constraints.
+# Only neutral administrative words may disappear during the comparison.
+HEADING_WORDS = re.compile(
+    r"\b(?:re|fw|fwd|rfq|request|for|quotation|quote|enquir(?:y|ies)|needed|"
+    r"parts?|order|replacement|urgent|replenishment)\b", re.IGNORECASE
+)
+
+
+def _unresolved_subject(item, content, analysis):
+    subject = item["subject"]
+    if SERVICE_HAZARD.search(subject):
+        return True
+    # The fixed demo captions accompany curated evidence. Incoming subjects are customer text.
+    if not item.get("message_id") and any(item["id"] == seed[0] and subject == seed[2] for seed in SEEDS):
+        return False
+    remainder = HEADING_WORDS.sub(" ", subject)
+    families = {line["family"] for line in analysis["lines"]}
+    for family, pattern in FAMILIES.items():
+        if family in families:
+            remainder = re.sub(r"\b(?:" + pattern + r")\b", " ", remainder, flags=re.IGNORECASE)
+    remainder = " ".join(remainder.strip(" .,:").casefold().split())
+    if not remainder:
+        return False
+    # Do not accept a prefix of a different reference or number. The body parser
+    # must have evaluated the same words together in the current request.
+    pattern = r"(?<![\w-])" + re.escape(remainder) + r"(?![\w-])"
+    return not re.search(pattern, " ".join(content.casefold().split()))
+
+
+def _omitted_attributes(previous, active, account):
+    required: dict[str, set[str]] = {}
+    for message in previous:
+        for line in analyse(message.removeprefix(REVISED_HEADER), account)["lines"]:
+            if line["attributes"]:
+                required.setdefault(line["family"], set()).update(line["attributes"])
+    # An unallocated measurement in a separate reply still needs resolution.
+    unallocated = required.get("Unidentified", set())
+    return sorted({field for line in active["lines"]
+                   for field in (required.get(line["family"], set()) | unallocated)
+                   if field not in line["attributes"]})
+
+
 def _investigate(item):
     # Only inbound customer messages establish requirements.
     messages = [entry["body"] for entry in item["thread"] if entry["direction"] == "inbound"]
@@ -132,6 +174,15 @@ def _investigate(item):
     if any(SERVICE_HAZARD.search(message) for message in messages[:basis]):
         _require_review(analysis, "The earlier enquiry contains conditions requiring a qualified technical reviewer.",
                         "Please refer the full enquiry history to a qualified technical reviewer.")
+    if _unresolved_subject(item, content, analysis):
+        _require_review(analysis, "The subject contains requirements not resolved in the active request.",
+                        "Please confirm the subject requirements in the complete request and refer special service conditions to a technical reviewer.")
+    if basis:
+        omitted = _omitted_attributes(messages[:basis], analysis, item["customer"])
+        if omitted:
+            fields = ", ".join(omitted)
+            _require_review(analysis, f"Earlier specifications need explicit confirmation: {fields}.",
+                            f"Please include the confirmed {fields} in the revised request.")
     item["extraction"] = analysis
     item["candidates"] = [c for line in analysis["lines"] for c in line["candidates"]]
     if analysis["ready"]:
@@ -153,6 +204,30 @@ def init(path: str | Path) -> None:
                 continue
             received = f"2026-11-17T{15-index:02d}:10:00+00:00"
             _insert_enquiry(db, key, customer, subject, body, attachments, reply, received)
+
+        if db.execute("PRAGMA user_version").fetchone()[0] == 0:
+            _recheck_legacy_decisions(db)
+            db.execute("PRAGMA user_version=1")
+
+
+def _recheck_legacy_decisions(db):
+    """Retain historical snapshots and explicitly reopen unsafe pre-audit decisions."""
+    for row in db.execute("SELECT state FROM enquiries").fetchall():
+        item = json.loads(row["state"])
+        previous = item["extraction"]
+        if not previous["ready"]:
+            continue
+        _investigate(item)
+        old_items = [(line["sku"], line["quantity"]) for line in previous["lines"]]
+        current_items = [(line["sku"], line["quantity"]) for line in item["extraction"]["lines"]]
+        if old_items == current_items and item["extraction"]["ready"]:
+            continue
+        item.update(selected_skus=[], selected_sku=None)
+        item["revision"] += 1
+        db.execute("UPDATE enquiries SET revision=?,state=? WHERE id=?",
+                   (item["revision"], json.dumps(item), item["id"]))
+        _audit(db, item, "Workspace update", "recheck_requirements",
+               "Reopened under updated verification rules. Earlier decisions and quotation versions are historical.", _now())
 
 
 CUSTOMERS = tuple(sorted({seed[1] for seed in SEEDS} | {"Contract Only Engineering"}))
@@ -353,7 +428,9 @@ def _transition(db, item, action, fields, at):
         if submitted != skus:
             raise ValueError("Confirm each resolved catalogue product against its evidence.")
         item.update(selected_skus=skus, selected_sku=skus[0], status="verified")
-        return "Employee verified the catalogue evidence for " + ", ".join(skus) + "."
+        records = [{key: evidence[key] for key in ("sku", "source", "specs")}
+                   for evidence in _technical_evidence(item)]
+        return "Employee verified catalogue evidence: " + json.dumps(records, ensure_ascii=False, sort_keys=True)
     if action in {"create_quote", "edit_quote"}:
         return _save_quote(db, item, action, fields, at)
     latest = _latest_quote(db, item)
