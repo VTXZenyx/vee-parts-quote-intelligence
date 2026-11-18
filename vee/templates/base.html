@@ -1,0 +1,31 @@
+{% from 'components.html' import icon %}
+<!doctype html>
+<html lang="en-NZ">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123b33">
+  <title>{% block title %}Enquiry workspace{% endblock %} · VEE Parts &amp; Quote Intelligence</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css') }}">
+  <script src="{{ url_for('static', filename='workspace.js') }}" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <a class="brand" href="{{ url_for('inbox') }}" aria-label="VEE workspace home">
+      <span class="brandmark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="brandname">VEE</span><span class="product">Parts &amp; Quote Intelligence</span>
+    </a>
+    <span class="environment"><span></span>Synthetic workspace</span>
+  </div>
+</header>
+<main class="shell" id="main">
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}<div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ icon('info') }} {{ message }}</div>{% endfor %}
+{% endwith %}
+{% block content %}{% endblock %}
+</main>
+<footer class="shell footer"><span>VEE Parts &amp; Quote Intelligence</span><span>{{ icon('flask', 14) }} Synthetic data · Local demonstration</span></footer>
+</body>
+</html>

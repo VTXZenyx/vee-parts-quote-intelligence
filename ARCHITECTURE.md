@@ -1,0 +1,69 @@
+# Architecture
+
+## Local deployment boundary
+
+The foundation runs as one Flask application serving an employee queue and enquiry workspace. The application opens a local SQLite database for a single synthetic distribution business. A browser on the same machine can change that workspace. There is no authenticated employee identity or tenant boundary. Use the local application only with synthetic data.
+
+| Component | Responsibility |
+| --- | --- |
+| Flask application factory in `vee/web.py` | Initialise the database, serve the searchable queue and enquiry detail, validate request origin and CSRF token on action forms, and return form errors to the employee. |
+| Jinja templates and static assets in `vee/` | Render the employee workflow, original request, requirements, commercial evidence and approval controls in the browser. |
+| Catalogue and quotation logic in `vee/catalogue.py` | Analyse inbound text against a synthetic catalogue, identify blockers and calculate quotations from the customer’s commercial records. |
+| Local store in `vee/store.py` | Load and update the synthetic enquiry workflow. The server owns state transitions and persists reviewed decisions and audit records. |
+| SQLite | Keep the local record across process restarts. Set `VEE_DATABASE` to select a location. The default is `workspace.sqlite3` in Flask’s instance directory. |
+| Verification | Unit and request-level tests exercise isolated databases. GitHub Actions runs lint, type checking and the automated suite. See TEST_PLAN.md for broader release requirements. |
+
+The browser reads an enquiry, then submits an explicit action to the selected enquiry’s POST endpoint. The store checks whether the action is allowed in the current state. Successful mutations change the persistent workflow and record the action. The browser follows a redirect to read the resulting state. Search operates over the synthetic queue and retains the enquiry ID as the stable workspace link.
+
+## Persistence and decisions
+
+The `enquiries` table stores an enquiry ID, its revision number and a JSON state document with the thread, attachments, requirements, candidate evidence and current selection. The `events` table records timestamp, actor, action and detail under a unique enquiry/revision pair. The `quotes` table stores each quotation snapshot under a unique enquiry/version pair. Startup creates the schema and missing seed records. It preserves existing decisions.
+
+Every submitted action carries the revision displayed to the employee. A SQLite write transaction takes a lock, compares that revision, checks the permitted transition and writes the state change, any quote snapshot and audit event together. A stale form or failed audit insert cannot partially apply a decision. Old quote versions remain available. “Demo employee” and “Mock mailbox” are synthetic actors.
+
+The demonstration begins with ENQ-1042. Approving a clarification adds a local outbound thread entry. A simulated inbound reply triggers analysis of the customer’s messages. The employee must confirm every resolved product before preparing a quote. A rejection captures a reason. Editing a rejected or draft quote writes a new version. Approval checks the latest saved quote against the current commercial calculation and closes the local workflow. It makes no external stock reservation or delivery commitment.
+
+## Back up and restore a synthetic workspace
+
+From the repository root, stop the local application and use a private local directory for the snapshot and recovered database. Both destination paths must be new, in existing directories on a filesystem supporting hard links. Substitute the actual source path if you set `VEE_DATABASE`.
+
+```bash
+.venv/bin/python -m vee.backup backup instance/workspace.sqlite3 instance/backup-001.sqlite3
+.venv/bin/python -m vee.backup restore instance/backup-001.sqlite3 instance/recovered-001.sqlite3
+VEE_DATABASE=instance/recovered-001.sqlite3 .venv/bin/python -m vee.web
+```
+
+Open the recovered workspace and check the last expected audit decision, quote version and total. Both operations open the source read-only and use SQLite’s backup API to capture committed state, including data in a write-ahead log. Before publishing the file, the CLI compares the schema with this code version and checks SQLite integrity and foreign keys. A private staging file and an exclusive hard link keep an existing destination intact. A failed check exits nonzero. Choose a different destination when repeating the drill.
+
+The snapshot contains the entire synthetic database, including customer text and audit history. It is an unencrypted local file. The drill covers recovery into the same application schema. It does not supply off-machine retention, tenant-specific recovery or production disaster recovery. Tests exercise the round trip and rejection of invalid input via `python -m unittest tests.test_backup -v`.
+
+## Matching and quotation policy
+
+The local catalogue covers pneumatic cylinders, bearings, hex bolts and hydraulic adapters. Text patterns recognise part references, whole-unit quantities and a limited vocabulary of technical attributes. An exact reference or a unique candidate satisfying the supported requirements can be presented for employee verification. Conflicts, missing attributes, unsupported language, discontinued references and certain high-risk terms trigger review or clarification. The analysis uses inbound message text. Sample attachment contents are available for employee inspection. Free-form interpretation and visual matching remain development work.
+
+A quote aggregates quantities per verified SKU and checks them against the synthetic on-hand quantity. The commercial rules look for an account agreement and use the synthetic list price where the account permits it. The quote multiplies each whole-unit quantity by its decimal net unit price, sums the net lines in NZD, then calculates 15% GST on the subtotal and rounds to cents using half-up rounding. The total is the subtotal plus rounded GST. Supply beyond on-hand stock, unknown contract pricing and discontinued parts require resolution. Dates of delivery remain unconfirmed.
+
+## Technology decisions
+
+| Decision | Reason for the foundation | When to revisit |
+| --- | --- | --- |
+| Server-rendered Flask and Jinja | Most interactions are reads and reviewed form submissions. One language, one process and one deployment keep the first end-to-end workflow easy to run and test. | Evaluate a typed JSON API with FastAPI and a React/Next.js client when complex document review, simultaneous users or external clients justify the additional boundaries. |
+| SQLite on local disk | Transactions and disk persistence are sufficient for a single synthetic workspace and isolated repeatable tests. The prototype requires no database service. | Adopt managed PostgreSQL, migrations, backup drills and tenant-aware constraints before multi-business use. Evaluate pgvector against a measured retrieval baseline before adding an embedding index. |
+| Catalogue evidence and deterministic commercial logic | A fixture, known catalogue record and explicit rule provide a reproducible baseline for an employee decision and a quote. Unknown or conflicting specifications must stay visible. | Add versioned catalogues, provenance and model adapters after data rights and evaluation labels exist. Keep engineering checks and arithmetic independent of model output. |
+| Explicit human decisions | A service accepting a model or customer message as an approval would cross an authority boundary. A reviewed draft and the authority to transmit are separate decisions. | Add authenticated, role-bound approvals tied to immutable revisions and an idempotent dispatch mechanism before enabling real communications. |
+
+## Threat model and pilot design
+
+The local web layer binds its normal launcher to loopback, limits accepted hostnames and request size, verifies a per-session form token and checks an explicit Origin header when supplied. It sets a restrictive content security policy, disables response caching and sets browser content-type protections. Its signing key is generated at start-up, so a restart invalidates existing session forms. Local process or filesystem access still grants access to the synthetic workspace. It has no production secrets, live email transport, live vision processing or ERP client.
+
+Before any real business data enters the system, implement and verify the following design.
+
+- Authenticate employees through an approved identity provider. Bind requests, background jobs and audit events to the correct business and actor. Apply role checks for sales, technical qualification, pricing authority and administration. Scope every query, object key, export and search index to its business. Test a minimum of two tenants.
+- Keep mailbox and supplier credentials in a managed secret store. Use least-privilege scopes, per-business credentials, rotation, revocation and source-specific consent. Encrypt transport and stored data. Set retention and deletion rules with each business.
+- Store attachments privately, validate type and size, scan before parsing and isolate parsers with resource limits. Treat all customer, supplier and model content as untrusted data. Restrict retrieval to approved sources. Validate model output against a typed schema with evidence references. Keep tools that can send, approve or change prices outside the model’s authority.
+- Version requirements, catalogue records, rules, commercial snapshots and quote terms. Bind employee approvals to exact inputs and invalidate approvals when inputs change. Persist workflow transitions, audit events and outbound work atomically. Use provider message IDs, idempotency keys, bounded retries and reconciliation for uncertain delivery.
+- Keep business records and operational logs separate, redact sensitive content, restrict audit access and maintain tamper-resistant history. Test safe migrations, backups and restoration. Record incident handling, processing failures, stale sources and operator recovery before a pilot.
+
+## Planned integration boundaries
+
+A mailbox adapter accepts authorised provider events and normalises messages into immutable thread and attachment records. A worker extracts structured requirements with source locations. A retrieval adapter searches approved catalogue revisions, while category rules compare required and observed values and supply blocking reasons. A commercial adapter provides dated customer-specific price, stock and delivery evidence. The quotation engine consumes verified inputs, versions and rounds them deterministically, and submits a reviewable document. Only an authorised dispatch worker can transmit a reviewed document. Start with modular components in one codebase and introduce queues, model providers and separate services as their workloads justify them.

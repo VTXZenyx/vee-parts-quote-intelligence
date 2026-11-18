@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% from 'components.html' import icon, date, status, identity, reject %}
+{% block title %}{{ item.id }} · {{ item.subject }}{% endblock %}
+{% block content %}
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ url_for('inbox') }}">{{ icon('arrow-left',15) }} Enquiry inbox</a><span>/</span><span class="mono">{{ item.id }}</span></nav>
+<header class="case-head">
+  <div class="case-state"><span class="case-id mono">{{ item.id }}</span>{{ status(item.status) }}{% if item.extraction.urgent %}<span class="urgent">Priority</span>{% endif %}</div>
+  <h1>{{ item.subject }}</h1>
+  <div class="case-meta"><span>{{ icon('building',15) }}{{ item.customer }}</span><span>{{ icon('calendar',15) }}Received {{ date(item.received_at, true) }}</span></div>
+</header>
+<div class="case-grid">
+  <div class="case-content">
+    {% if item.quotes %}{% include 'quotation.html' %}{% endif %}
+    <section class="panel case-section" id="request">
+      <div class="section-heading">{{ icon('mail',20) }}<h2>Customer request</h2></div>
+      <div class="message-top"><strong>{{ item.customer }}</strong><span>{{ item.sender }}</span></div>
+      <p class="message-body">{{ item.body }}</p>
+      {% if item.attachments %}<div class="attachments"><h3>Attachments</h3>{% for attachment in item.attachments %}<details class="attachment"><summary>{{ icon('paperclip',15) }}{{ attachment.name }}</summary><p class="message-body">{{ attachment.text }}</p></details>{% endfor %}</div>{% endif %}
+    </section>
+    <section class="panel case-section" id="evidence">
+      <div class="section-heading">{{ icon('list-check',20) }}<h2>Technical investigation</h2></div>
+      {% for line in item.extraction.lines %}
+      <article class="investigation">
+        <div class="line-head"><h3>{{ (line.family or 'Unclassified part')|replace('_', ' ')|capitalize }}</h3><span>Line {{ loop.index }} · Qty {{ line.quantity if line.quantity is not none else 'unknown' }}</span></div>
+        {% if line.reference or line.attributes %}<dl class="attributes">
+          {% if line.reference %}<div><dt>Part reference</dt><dd class="mono">{{ line.reference }}</dd></div>{% endif %}
+          {% for name, value in line.attributes.items() %}<div><dt>{{ name|replace('_',' ')|capitalize }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+        </dl>{% endif %}
+        {% if line.issues %}<div class="issues"><h4>{{ icon('alert',16) }} Outstanding issues</h4><ul>{% for issue in line.issues %}<li>{{ issue }}</li>{% endfor %}</ul></div>{% endif %}
+        <h4 class="candidate-heading">Catalogue candidates <span class="count">{{ line.candidates|length }}</span></h4>
+        {% for candidate in line.candidates %}<details class="candidate" {% if item.status == 'needs_verification' %}open{% endif %}>
+          <summary><span><strong>{{ candidate.name }}</strong><small class="mono">{{ candidate.sku }}</small></span>{{ icon('chevron',16) }}</summary>
+          <div class="candidate-body">
+            <span class="source">{{ icon('book',14) }}{{ candidate.source }}</span>
+            {% if candidate.evidence %}<ul class="evidence-list">{% for evidence in candidate.evidence %}<li>{{ evidence }}</li>{% endfor %}</ul>{% endif %}
+            {% if candidate.specs %}<dl class="attributes small">{% for key, value in candidate.specs.items() %}<div><dt>{{ key|replace('_',' ')|capitalize }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl>{% endif %}
+            <div class="commercial"><div><small>Stock on hand</small><strong>{{ candidate.stock if candidate.stock is not none else 'Unconfirmed' }}</strong></div><div><small>Account price</small><strong>{% if candidate.unit_price is not none %}NZD {{ candidate.unit_price }}{% else %}Unconfirmed{% endif %}</strong></div><div><small>Availability</small><strong>{{ candidate.availability or 'Unconfirmed' }}</strong></div><div><small>Delivery</small><strong>{{ candidate.delivery or 'Unconfirmed' }}</strong></div></div>
+            <p class="commercial-source">{{ candidate.price_basis }} · {{ candidate.commercial_source }}</p>
+          </div>
+        </details>{% else %}<p class="subtle no-candidates">No catalogue candidates found.</p>{% endfor %}
+      </article>
+      {% endfor %}
+    </section>
+    <section class="panel case-section" id="conversation">
+      <div class="section-heading">{{ icon('conversation',20) }}<h2>Message history</h2><span class="count">{{ item.thread|length }}</span></div>
+      <ol class="timeline">{% for message in item.thread|reverse %}<li><div class="event-top"><strong>{{ message.author }}</strong><small>{{ date(message.at, true) }}</small></div><span class="event-type">{{ 'Customer message' if message.direction == 'inbound' else 'Approved mock clarification' }}</span><p class="message-body">{{ message.body }}</p></li>{% endfor %}</ol>
+    </section>
+    <section class="panel case-section" id="activity">
+      <div class="section-heading">{{ icon('history',20) }}<h2>Audit history</h2></div>
+      <ol class="timeline">{% for event in item.history|reverse %}<li><div class="event-top"><strong>{{ event.action|replace('_',' ')|capitalize }}</strong><small>{{ date(event.at, true) }}</small></div><span class="event-type">{{ event.actor }} · Revision {{ event.revision }}</span><p class="message-body">{{ event.detail }}</p></li>{% endfor %}</ol>
+    </section>
+  </div>
+  <aside class="action-column">
+    <section class="panel action-panel">
+      <div class="action-label">{{ icon('workflow',17) }} Employee review</div>
+      {% include 'actions.html' %}
+    </section>
+    <nav class="panel jump" aria-label="Enquiry sections"><h3>In this enquiry</h3>
+      {% if item.quotes %}<a href="#quotation">{{ icon('document-check',16) }} Quotation</a>{% endif %}
+      <a href="#request">{{ icon('mail',16) }} Customer request</a><a href="#evidence">{{ icon('list-check',16) }} Technical investigation</a><a href="#conversation">{{ icon('conversation',16) }} Message history</a><a href="#activity">{{ icon('history',16) }} Audit history</a>
+    </nav>
+  </aside>
+</div>
+{% endblock %}
