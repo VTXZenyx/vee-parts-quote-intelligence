@@ -64,3 +64,18 @@ From the repository root with the documented environment installed, the followin
 ```
 
 The suite ran 33 tests. The fixed catalogue evaluation passed 51 cases and matched 7 independently specified expected totals. These are synthetic, author-labelled cases. In Chromium the incomplete cylinder order reached NZD 316.25, was rejected, revised to three cylinders at NZD 474.38 and approved. The smoke test also checks a new enquiry, an actual viewable synthetic photograph, saved status, edit guards, print rendering and narrow-screen width. The backup CLI tests exercise both corrupted and valid snapshots.
+
+## Full-system audit of the first synthetic milestone
+
+The audit started from the clean GitHub feature branch at `b9520a0`. All 33 existing unittest methods, all 51 original author-labelled cases and their seven price totals passed. The original Chromium workflow, lint and type checks also passed. An independent review then reproduced acceptance errors outside that coverage.
+
+| Check after fixes | Command from the repository root | Observed result |
+| --- | --- | --- |
+| Backend, HTTP, database and recovery | `.venv/bin/python -m unittest discover -v` | 45 tests passed, including 12 backup tests. |
+| Fixed catalogue benchmark | `.venv/bin/python -m evaluation.run` | 61/61 cases and 9/9 golden totals. All 77 line identities or abstentions matched expectations. Zero unsafe ready decisions in these fixtures. |
+| Employee journeys using a disposable live server | `.venv/bin/python -m scripts.browser_smoke` | Chromium exercised intake, the static attachment, customer and employee revisions, stale tabs, required confirmations, evidence refresh, rejection, unsaved changes, approval, A4 quote generation and commercial holds. Long subjects were checked at five viewport sizes. |
+| Code and installed dependencies | `.venv/bin/ruff check vee tests evaluation scripts`, `.venv/bin/mypy --check-untyped-defs vee evaluation`, `.venv/bin/python -m pip check` | Passed. PyPI’s version-specific metadata returned zero non-withdrawn advisory IDs for the 17 pinned Python packages on the audit date. |
+
+The cylinder journey produced NZD 316.25 for two units and NZD 474.38 for the approved three-unit revision. A separate arithmetic cross-check used integer cents for quantities 1–3 across every ordered pair of five synthetic SKUs on the Harbour Packaging account. All 225 subtotals, GST values and gross totals matched.
+
+Review reproduced incorrect eligibility when technical conditions appeared only in a subject, when a revised request omitted the earlier pressure requirement and when assembly counts were ambiguous. Backup review found that consistent SQLite pages could still contain inconsistent financial or approval records. Browser inspection found overflow on valid long subjects. Regression tests cover these failures and database write rollback. The suite uses real local HTTP and SQLite and simulated business records. Production identity, external dispatch, arbitrary file intake, live technical data and business continuity remain separate acceptance gates.
