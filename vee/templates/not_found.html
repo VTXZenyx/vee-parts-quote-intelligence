@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Page unavailable{% endblock %}
+{% block content %}
+<section class="panel case-section error-state">
+  <h1>Page unavailable</h1>
+  <p>The enquiry or email may belong to a different work area. Open the enquiry list or mailbox for the current workspace.</p>
+  <div class="stack">
+    <a class="button primary" href="{{ url_for('inbox') }}">Enquiry inbox</a>
+    <a class="button" href="{{ url_for('demo_email') }}">Demo Email Inbox</a>
+  </div>
+</section>
+{% endblock %}

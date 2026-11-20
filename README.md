@@ -14,14 +14,23 @@ python3.12 -m venv .venv
 
 Open the loopback address on port 5050 printed by Flask. On first run the server seeds the local SQLite database at `instance/workspace.sqlite3`. Subsequent starts preserve enquiry history and decisions. Set `VEE_DATABASE` to a different filesystem path for a separate synthetic workspace. The local development server represents one demo employee. Use only on a trusted machine with synthetic records.
 
+## Start a guided demo
+
+1. On **Enquiry workspace**, select **Start guided demo**. VEE creates a separate seeded workspace and prepares a Harbour Packaging email for two cylinders.
+2. Select **Receive test email**. Read the original message, then find the missing specifications under **Technical investigation**. **VEE analysis** links findings to the customer’s words.
+3. Review the question in **Employee review** and select **Approve clarification**. Choose **Load the cylinder reply**, then **Receive demo reply**.
+4. Compare the measurements with the suggested cylinder. Confirm the part and select **Verify match**. Create a draft quotation.
+5. Review two cylinders at NZD 137.50 each, NZD 41.25 GST and the NZD 316.25 total. Follow **Go to employee review** and approve the saved version.
+6. Use the guide’s links to inspect message and audit history. **Exit guide** keeps you in the demo with the current enquiry. **Return to original workspace** switches back to the original records. Start again from the dashboard for a fresh run.
+
+Guide instructions follow the prepared cylinder scenario and the enquiry's actual stage. The guide uses the same employee forms as regular work. Reopening the browser in the same session allows **Continue guided demo**. After a server restart the demo database is retained and the guide can be started again.
+
 ## Try the Demo Email Inbox
 
-1. From the dashboard, select **Try sample workflow** to load a cylinder email, or **Create test email** to choose another scenario or write your own. Use addresses ending in `.example`.
-2. Select **Receive test email**. Open the original message, check the next step, and read the missing specifications and catalogue evidence.
-3. Select **Approve clarification** to add the reviewed question to the local conversation. Choose **Compose demo reply**, open **Try a reply example**, and load **Supply the missing cylinder measurements**. Select **Receive demo reply**.
-4. Review the cylinder evidence and confirm the proposed part. Prepare the quote for two cylinders and review the NZD 316.25 total, including NZD 41.25 GST. You can save changes as a new quote version before approving it.
-5. Open **Demo Email Inbox**, expand a received email in **Demo message history**, and select **Replay delivery**. VEE recognises the message ID and keeps the existing conversation.
-6. Select **Start fresh demo** to open a separate, seeded SQLite workspace. **Return to original workspace** restores the original selection. New demos are stored beside the original database in its `.demos` directory. A browser keeps its current selection across an app restart and must reload forms to continue.
+- **Fictional email** lets you load a prepared scenario or write your own. Use addresses ending in `.example`. Approved clarification threads appear under **Waiting for a customer reply**.
+- **Provider fixtures** imports a simulated Gmail or Outlook delivery and shows accepted and held receipts. Expand **Delivery details** for identifiers and the original provider record.
+- **Message history** shows fictional email deliveries. Expand a received email and select **Replay delivery** to verify that the conversation remains intact.
+- **Start fresh demo** creates a separate workspace for free exploration. New demo databases are stored next to the original in its `.demos` directory.
 
 Choose the unavailable adapter to see a commercial hold. Choose the pressure conflict to see a technical block, then use the corrected pressure reply and reconcile it before a part can be verified. The inbox also includes exact bearing references, multiple parts, ambiguous quantities, irrelevant messages and a request to skip approval.
 
@@ -29,10 +38,10 @@ Demo replies attach to a selected enquiry once an employee has approved a clarif
 
 ## Try intelligent enquiry processing
 
-1. Open **Demo Email Inbox → Import a provider email**. Select the Gmail fixture for Harbour’s missing cylinder dimensions first. Expand the held delivery to read the reason, original provider record and normalised envelope.
+1. Open **Demo Email Inbox → Provider fixtures**. Select the Gmail fixture for Harbour’s missing cylinder dimensions first. Expand the held delivery to read the reason, original provider record and normalised envelope.
 2. Import **Harbour · cylinder request**. On the held reply select **Retry association**, then open the linked enquiry. Outlook’s independent cylinder request has the same subject and opens a different enquiry. **Replay provider delivery** exercises the original stored payload.
-3. Under **Customer requirements**, switch between customer messages to inspect findings and the quoted evidence. The default method is deterministic. Under **Process or review this message**, select **Mock model** for the offline demonstration. The technical investigation shows candidate catalogue evidence and outstanding restrictions.
-4. Confirm a reading or flag a correction with a proposed value and reason. A correction reopens technical review and makes existing quote versions historical. Obtain a new customer reply beginning with `Revised request:` and reconcile the complete request before reverifying. The original messages remain available in the thread.
+3. Under **VEE analysis**, switch between customer messages and follow **Read source message** to inspect the quoted evidence. The default method is deterministic. Open **Change processing method** and select **Mock model** for the offline demonstration. The technical investigation shows candidate catalogue evidence and outstanding restrictions.
+4. Open **Review or correct a finding**. Confirm a reading or flag a correction with a proposed value and reason. A correction reopens technical review and makes existing quote versions historical. Obtain a new customer reply beginning with `Revised request:` and reconcile the complete request before reverifying. The original messages remain available in the thread.
 5. For the complete cylinder request, verify the match, draft the quote and review NZD 316.25 including GST. To see an approval become historical, approve the Outlook bearing quotation and then import **Kauri · corrected bearing quantity**.
 
 ### Optional live extraction
@@ -55,14 +64,14 @@ ENQ-1040 exercises a multi-product order. Technical comparisons use deterministi
 
 ```sh
 .venv/bin/python -m pip install -r requirements-dev.txt
-.venv/bin/ruff check vee tests
-.venv/bin/mypy --check-untyped-defs vee
+.venv/bin/ruff check vee tests scripts evaluation
+.venv/bin/mypy --check-untyped-defs vee evaluation
 .venv/bin/python -m unittest discover -v
 ```
 
 The unit and integration tests use temporary databases. Refer to [the test plan](TEST_PLAN.md) for the safety scenarios, [architecture](ARCHITECTURE.md) for data and approval boundaries, and [the backlog](BACKLOG.md) for acceptance criteria for later releases.
 
-Run `.venv/bin/python -m evaluation.run` for the fixed synthetic catalogue benchmark. For the optional interactive smoke test, install `requirements-browser.txt` in the same environment and use a local Chromium installation (or run `.venv/bin/playwright install chromium`). Then run `.venv/bin/python -m scripts.browser_smoke`. The smoke test starts its own server and database.
+Run `.venv/bin/python -m evaluation.run` for the synthetic catalogue benchmark and `.venv/bin/python -m evaluation.enquiries` for the offline findings evaluation. For the optional interactive smoke test, install `requirements-browser.txt` in the same environment and use a local Chromium installation (or run `.venv/bin/playwright install chromium`). Then run `.venv/bin/python -m scripts.browser_smoke`. The smoke test starts its own server and database.
 
 **New enquiry** accepts a synthetic account, subject and original request. Replaying the same intake form records one enquiry and one receipt. Conflicting content for an existing message ID is rejected. **ENQ-1037** contains a generated inspection photograph. Employees can open the attachment and review the missing fitting specifications.
 

@@ -40,7 +40,7 @@
       <button type="reset" class="button">Discard edits</button>
     </form>
   </details>
-  <p class="hint" data-unsaved hidden>Save or discard your edits before approving this quotation.</p>
+  <p class="hint" data-unsaved role="status" hidden>Save or discard your edits before approving this quotation.</p>
   {% if item.status == 'draft_quote' %}{{ reject(item, csrf, 'reject_quote', 'Reject this quotation') }}{% endif %}
 {% elif item.status == 'approved' %}
   <h2>Quotation approved</h2><p>Version {{ item.quotes[-1].version }} has employee approval. The quotation is available to print.</p>

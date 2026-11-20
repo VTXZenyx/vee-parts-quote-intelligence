@@ -1,14 +1,66 @@
 {% set quote = item.quotes|last %}
-<section class="panel case-section quote" id="quotation">
-  <div class="quote-heading"><div><span class="print-only brand-print">VEE Parts &amp; Quote Intelligence</span><div class="section-heading">{{ icon('document-check',20) }}<h2>Quotation</h2></div></div><button class="button compact no-print" data-print type="button">{{ icon('printer',15) }} Print</button></div>
-  <div class="quote-meta"><div><small>Prepared for</small><strong>{{ item.customer }}</strong></div><div><small>Reference</small><strong>{{ item.id }} · v{{ quote.version }}</strong></div><div><small>Status</small><strong>{{ 'Approved' if item.status == 'approved' else 'Rejected' if item.status == 'rejected' else 'Draft' if item.status == 'draft_quote' else 'Historical' }}</strong></div><div><small>Prepared</small><strong>{{ date(quote.created_at) }}</strong></div></div>
-  <table class="quote-table"><thead><tr><th>Product</th><th>Quantities</th><th>Unit price</th><th>Amount</th></tr></thead><tbody>
-    {% for line in quote.lines %}<tr><td><strong>{{ line.name }}</strong><small>{{ line.sku }}</small><small>Stock · {{ line.availability }}</small><small>{{ line.delivery or 'Delivery unconfirmed' }}</small></td><td>Requested {{ line.requested_quantity|default('unrecorded') }}, quoted {{ line.quantity }}</td><td>{{ line.unit_price }}</td><td>{{ line.line_total }}</td></tr>{% endfor %}
-  </tbody></table>
-  <dl class="totals"><div><dt>Subtotal</dt><dd>{{ quote.subtotal }}</dd></div><div><dt>GST ({{ (quote.gst_rate|float * 100)|round|int }}%)</dt><dd>{{ quote.gst }}</dd></div><div><dt>Total {{ quote.currency }}</dt><dd>{{ quote.total }}</dd></div></dl>
-  {% if quote.notes %}<h4>Notes</h4><p class="message-body">{{ quote.notes }}</p>{% endif %}
+{% set quote_status = {'approved':'Approved', 'rejected':'Rejected', 'draft_quote':'Draft'}.get(item.status, 'Historical') %}
+<section class="panel case-section quote" id="quotation" aria-labelledby="quote-title">
+  <div class="quote-heading">
+    <div>
+      <span class="print-only brand-print">VEE Parts &amp; Quote Intelligence</span>
+      <div class="section-heading">{{ icon('document-check',20) }}<h2 id="quote-title">Quotation</h2></div>
+    </div>
+    <div class="stack">
+      <span class="quote-status quote-status-{{ quote_status|lower }}">{{ quote_status }}</span>
+      <button class="button compact no-print" data-print type="button">{{ icon('printer',15) }} Print</button>
+    </div>
+  </div>
+  <dl class="quote-meta">
+    <div><dt>Prepared for</dt><dd>{{ item.customer }}</dd></div>
+    <div><dt>Enquiry reference</dt><dd>{{ item.id }}</dd></div>
+    <div><dt>Quotation version</dt><dd>{{ quote.version }}</dd></div>
+    <div><dt>Prepared on</dt><dd>{{ date(quote.created_at) }}</dd></div>
+  </dl>
+  {% if item.status == 'rejected' %}
+    {% set rejection = item.history|selectattr('action', 'equalto', 'reject_quote')|list|last %}
+    {% if rejection %}<p class="issues rejection-note">{{ rejection.detail }}</p>{% endif %}
+  {% elif quote_status == 'Historical' %}
+    <p class="issues">Earlier quotation. Review the current enquiry before preparing another version.</p>
+  {% endif %}
+  <table class="quote-table" role="table">
+    <caption class="sr">Quoted products and amounts in {{ quote.currency }}</caption>
+    <thead role="rowgroup"><tr role="row"><th scope="col">Product</th><th scope="col">Requested</th><th scope="col">Quoted</th><th scope="col">Unit price</th><th scope="col">Line total</th></tr></thead>
+    <tbody role="rowgroup">
+      {% for line in quote.lines %}<tr role="row">
+        <th scope="row">
+          <strong>{{ line.name }}</strong><small class="mono">{{ line.sku }}</small>
+          <small>{{ line.availability }}</small><small>{{ line.delivery or 'Delivery date unconfirmed' }}</small>
+        </th>
+        <td role="cell" class="requested-quantity"><span class="mobile-label" aria-hidden="true">Requested</span>{{ line.requested_quantity|default('Unrecorded') }}</td>
+        <td role="cell" class="quoted-quantity"><span class="mobile-label" aria-hidden="true">Quoted</span>{{ line.quantity }}</td>
+        <td role="cell"><span class="mobile-label" aria-hidden="true">Unit price</span>{{ line.unit_price }}</td>
+        <td role="cell" class="line-total"><span class="mobile-label" aria-hidden="true">Line total</span>{{ line.line_total }}</td>
+      </tr>{% endfor %}
+    </tbody>
+  </table>
+  <div class="quote-summary">
+    {% if quote.notes %}<div class="quote-notes"><h3>Quotation notes</h3><p class="message-body">{{ quote.notes }}</p></div>{% endif %}
+    <dl class="totals">
+      <div><dt>Subtotal</dt><dd>{{ quote.subtotal }}</dd></div>
+      <div><dt>GST ({{ (quote.gst_rate|float * 100)|round|int }}%)</dt><dd>{{ quote.gst }}</dd></div>
+      <div><dt>Total {{ quote.currency }}</dt><dd>{{ quote.total }}</dd></div>
+    </dl>
+  </div>
   {% set issues = item.extraction.lines | map(attribute='issues') | sum(start=[]) %}
-  {% if issues %}<div class="issues no-print"><h4>Outstanding issues</h4><ul>{% for issue in issues|unique %}<li>{{ issue }}</li>{% endfor %}</ul></div>{% endif %}
-  <p class="quote-disclosure">Synthetic quotation · All amounts in {{ quote.currency }}.</p>
-  {% if item.quotes|length > 1 %}<details class="versions no-print"><summary>Previous versions ({{ item.quotes|length - 1 }})</summary>{% for previous in item.quotes[:-1]|reverse %}<div><strong>Version {{ previous.version }}</strong> · {{ date(previous.created_at,true) }} · {{ previous.currency }} {{ previous.total }}{% for line in previous.lines %}<p>{{ line.quantity }} × {{ line.sku }} @ {{ line.unit_price }}</p>{% endfor %}{% if previous.notes %}<p class="message-body">{{ previous.notes }}</p>{% endif %}</div>{% endfor %}</details>{% endif %}
+  {% if issues %}<div class="issues"><h4>Outstanding issues</h4><ul>{% for issue in issues|unique %}<li>{{ issue }}</li>{% endfor %}</ul></div>{% endif %}
+  <div class="quote-footer">
+    <p class="quote-disclosure">Synthetic quotation · All amounts in {{ quote.currency }}</p>
+    {% if item.status in ['draft_quote', 'rejected'] %}<a class="text-link no-print" href="#employee-action">Go to employee review {{ icon('arrow-right',15) }}</a>{% endif %}
+  </div>
+  {% if item.quotes|length > 1 %}
+    <details class="versions no-print">
+      <summary>Previous versions ({{ item.quotes|length - 1 }})</summary>
+      {% for previous in item.quotes[:-1]|reverse %}
+      <div><strong>Version {{ previous.version }}</strong> · {{ date(previous.created_at,true) }} · {{ previous.currency }} {{ previous.total }}
+        {% for line in previous.lines %}<p>{{ line.quantity }} × {{ line.sku }} @ {{ line.unit_price }}</p>{% endfor %}
+        {% if previous.notes %}<p class="message-body">{{ previous.notes }}</p>{% endif %}
+      </div>{% endfor %}
+    </details>
+  {% endif %}
 </section>

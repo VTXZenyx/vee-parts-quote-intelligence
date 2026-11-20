@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Workspace unavailable{% endblock %}
 {% block content %}
-<section class="panel case-section">
+<section class="panel case-section error-state">
 <h1>Workspace unavailable</h1>
 <p>The database could not complete this request. Reload the enquiry and check its latest revision before retrying.</p>
 <a class="button" href="{{ url_for('inbox') }}">Return to enquiry inbox</a>

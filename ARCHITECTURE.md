@@ -95,3 +95,7 @@ The advisory service handles one inbound message at a time. Local modes extract 
 Findings are advisory and cannot select a SKU, authorise a price or advance approval. Explicit processing saves a source-bound result against the displayed revision, with a second revision check after the optional network call. Employee reviews retain the prior value, evidence and reason in audit history. A proposed correction clears the active verification, preserves historical quotations and requires newer complete customer evidence and reconciliation. Current evidence is kept per message. Rerunning extraction replaces that message’s displayed advisory. Prior review decisions remain in the audit trail.
 
 Startup extends V2 workspaces in place. Existing V2 demo cookies upgrade their associated workspace on access. Recovery accepts a V2 schema and verifies V3 receipt-to-source links, advisory evidence, corrections, revisions and quote decisions in a V3 snapshot.
+
+## V4 guided workflow
+
+The guide stores its workspace and enquiry selection in the signed browser session. It creates an isolated demo using the existing workspace action, then links the received cylinder example to the guide. The enquiry's saved status drives the guidance. Employee decisions use the same revision-bound routes and quotation rules as regular work. Exiting the guide clears the selection and preserves the demo database. Switching to the original workspace clears both the guide and the demo cookie.
