@@ -16,6 +16,10 @@ class ExtractionTests(unittest.TestCase):
         rows = result["findings"]
         self.assertTrue(all(row["evidence"] in source for row in rows))
         self.assertIn(
+            "roughly 32 mm",
+            [row["evidence"] for row in rows if row["kind"] == "dimension"],
+        )
+        self.assertIn(
             ("dimension", "approximate"), {(r["kind"], r["status"]) for r in rows}
         )
         self.assertTrue(
@@ -120,3 +124,48 @@ class ExtractionTests(unittest.TestCase):
             (result["method"], result["findings"]), ("openai", payload["findings"])
         )
         self.assertEqual(len(seen), 1)
+
+    def test_rate_limit_and_timeout_keep_source_reviewable(self):
+        import httpx2
+        from openai import OpenAI
+
+        from vee.extraction import OpenAIProvider
+
+        for status, expected in [(429, "rate limit"), (408, "timed out")]:
+            calls = []
+
+            def handler(request, code=status, attempts=calls):
+                attempts.append(1)
+                if code == 408:
+                    raise httpx2.ReadTimeout("timeout", request=request)
+                return httpx2.Response(code, json={"error": {"message": "fixture"}})
+
+            with (
+                self.subTest(status=status),
+                OpenAI(
+                    api_key="offline-test",
+                    max_retries=0,
+                    http_client=httpx2.Client(transport=httpx2.MockTransport(handler)),
+                ) as client,
+            ):
+                result = extract(
+                    "a",
+                    "1 x BRG-6205-ZZ",
+                    "openai",
+                    provider=OpenAIProvider(client, "test"),
+                )
+                self.assertIn(expected, result["notice"])
+                self.assertEqual(result["method"], "deterministic")
+                self.assertEqual(len(calls), 1)
+
+    def test_partial_numeric_evidence_does_not_support_stated_pressure(self):
+        row = {
+            "kind": "pressure",
+            "item": 1,
+            "status": "stated",
+            "value": "50 bar",
+            "evidence": "50 bar",
+        }
+        for source in ["250 bar", "2.50 bar"]:
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                validate({"findings": [row]}, source)

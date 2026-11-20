@@ -17,7 +17,11 @@ def select(item, source):
     if source not in {str(i) for i in range(1, len(messages) + 1)}:
         raise ValueError("Choose an existing customer message.")
     message = messages[int(source) - 1]
-    identity = message.get("internet") or message.get("message_id") or f"{item['id']} inbound {source}"
+    identity = (
+        message.get("internet")
+        or message.get("message_id")
+        or f"{item['id']} inbound {source}"
+    )
     subject = message.get("subject") or (item["subject"] if source == "1" else "")
     return source, identity, subject, message["body"]
 
@@ -30,7 +34,9 @@ def displayed(item, source):
 
 def check_revision(item, revision):
     if str(item["revision"]) != revision:
-        raise ValueError("This enquiry has changed. Review the latest revision and retry.")
+        raise ValueError(
+            "This enquiry has changed. Review the latest revision and retry."
+        )
 
 
 def process(path, key, fields):
@@ -38,13 +44,17 @@ def process(path, key, fields):
     check_revision(item, fields.get("revision"))
     source, identity, subject, body = select(item, fields.get("source"))
     # Await the optional external service outside the database write transaction.
-    result = extract(identity, body, fields.get("mode", "deterministic"), subject=subject)
+    result = extract(
+        identity, body, fields.get("mode", "deterministic"), subject=subject
+    )
     with store._transaction(path, write=True) as db:
         item = store._load(db, key)
         check_revision(item, fields.get("revision"))
         item.setdefault("advisories", {})[source] = result
         detail = f"Message {source} ({identity}): {result['method']} {result['model']}. {result['notice']}"
-        store._save_revision(db, item, "Demo employee", "extract_findings", detail, store._now())
+        store._save_revision(
+            db, item, "Demo employee", "extract_findings", detail, store._now()
+        )
 
 
 def review(path, key, fields):
@@ -63,13 +73,33 @@ def review(path, key, fields):
         note = {"decision": decision, "reason": reason, "original": row["value"]}
         action = "review_finding"
         if decision == "correct":
-            note["replacement"] = store._text(fields.get("replacement"), "the proposed correction")
-            item.setdefault("correction_hold", []).append({"source": source, "finding": index,
-                "replacement": note["replacement"], "after": len(sources(item))})
+            note["replacement"] = store._text(
+                fields.get("replacement"), "the proposed correction"
+            )
+            item.setdefault("correction_hold", []).append(
+                {
+                    "source": source,
+                    "finding": index,
+                    "replacement": note["replacement"],
+                    "after": len(sources(item)),
+                }
+            )
             item.update(selected_skus=[], selected_sku=None)
             store._investigate(item)
             action = "recheck_requirements"
         result.setdefault("reviews", {})[index] = note
         item.setdefault("advisories", {})[source] = result
-        audit = {"source": result["source"], "method": result["method"], "finding": row, **note}
-        store._save_revision(db, item, "Demo employee", action, json.dumps(audit, ensure_ascii=False), store._now())
+        audit = {
+            "source": result["source"],
+            "method": result["method"],
+            "finding": row,
+            **note,
+        }
+        store._save_revision(
+            db,
+            item,
+            "Demo employee",
+            action,
+            json.dumps(audit, ensure_ascii=False),
+            store._now(),
+        )

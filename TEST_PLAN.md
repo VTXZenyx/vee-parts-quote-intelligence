@@ -101,3 +101,22 @@ Run the existing checks from the repository root:
 `tests/test_demo_mail.py` checks envelope validation, concurrent idempotent delivery, thread and address binding, stale revisions, replay after a state change, clarification and approval gates, revised pressure, ambiguous quantities, unavailable stock, database rollback, backup, restart and workspace isolation. `scripts/browser_demo.py` drives the cylinder email through clarification, a reply, employee review and NZD 316.25 quote approval. It checks duplicate replay, the unavailable adapter hold, isolated workspace return, and narrow-screen interactions. The V1 browser cases still cover direct intake, quotation versions, responsive overflow and A4 printing.
 
 The V2 local run passed 54 automated tests, all 61 synthetic evaluation cases and all nine labelled quotation totals. Ruff, mypy, dependency consistency and the live Chromium smoke test passed. Desktop dashboard and inbox layouts and the mobile enquiry view were visually inspected.
+
+## V3 intelligent enquiries
+
+Final local verification used Python 3.12 and Chromium with fresh temporary SQLite databases. Commands are relative to the repository, using executables in `.venv/bin`.
+
+| Command | Observed result |
+| --- | --- |
+| `ruff check vee tests evaluation scripts` | Passed |
+| `mypy --check-untyped-defs vee evaluation` | Passed for 11 source files |
+| `python -m unittest discover -v` | 76 passed |
+| `python -m unittest tests.test_backup tests.test_provider_mail -q` | 24 passed, also included in discovery |
+| `python -m evaluation.run` | 61/61 cases, 77/77 SKU decisions or abstentions, 9/9 quoted totals, 0 unsafe-ready outcomes |
+| `python -m evaluation.enquiries` | 16/16 author-labelled message cases in deterministic mode and 16/16 in mock mode. Each matched all 16 expected reference lists and all 13 labelled whole-message quantity lists, including abstentions. |
+| `python -m scripts.browser_smoke` | Passed V1, V2 and provider workflows, duplicate replay, quote history, printing and mobile layout assertions |
+| `python -m pip check` | Dependency consistency passed |
+
+The provider tests cover concurrent delivery, equal subjects, changed subjects, forwards, unknown or conflicting identifiers, new requests inside existing conversations, database failure rollback, late parents, successive replies and invalidation after approval. A V2 snapshot was restored, upgraded, imported into and copied again. Replaying the delivery on the recovered database preserved the enquiry. Chromium recovered an early Gmail reply while an independent Outlook request shared its subject, recorded a mock extraction and employee review, and approved the NZD 316.25 quote. The desktop provider inbox and narrow-screen evidence view were also inspected visually.
+
+Regressions caught while implementing V3 included counting a subject as a second product, linking a third email by receipt order after recovering its parent, accepting a partial numeric source as evidence for a pressure, and restoring a receipt or finding with the wrong source. The SDK tests use the installed client and an in-memory HTTP transport, including a valid structured response, rate limiting and timeout. No live inference, provider credentials, mail delivery or real business records were used for verification. The 16 message cases are reused across local modes. Neither that comparison nor the 61 catalogue fixtures measure industrial field accuracy.

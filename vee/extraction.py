@@ -71,6 +71,12 @@ class Provider(Protocol):
     def generate(self, source: str) -> object: ...
 
 
+def numeric_literal(value: str, text: str) -> bool:
+    prefix = r"(?<![\w.,/−+-])" if value[0].isdigit() else ""
+    suffix = r"(?!\d|[.,/]\d)" if value[-1].isdigit() else ""
+    return re.search(prefix + re.escape(value) + suffix, text) is not None
+
+
 def validate(payload: object, source: str) -> list[dict]:
     if not isinstance(payload, dict) or set(payload) != {"findings"}:
         raise ValueError("Invalid findings document.")
@@ -98,6 +104,15 @@ def validate(payload: object, source: str) -> list[dict]:
             row["status"] == "stated" and value not in evidence
         ):
             raise ValueError("Missing source evidence.")
+        if (
+            row["status"] == "stated"
+            and row["kind"] in {"pressure", "quantity", "dimension"}
+            and (
+                not numeric_literal(value, evidence)
+                or not numeric_literal(evidence, source)
+            )
+        ):
+            raise ValueError("A partial measurement is insufficient evidence.")
         result = dict(row)
         if row["status"] == "stated" and row["kind"] in {
             "dimension",
@@ -106,12 +121,23 @@ def validate(payload: object, source: str) -> list[dict]:
             "attribute",
         }:
             # A provider may quote only the number and omit its qualifier.
-            contexts = [
-                source[max(0, m.start() - 32) : m.end() + 16]
-                for m in re.finditer(re.escape(evidence), source)
-            ]
-            if any(APPROX.search(context) for context in contexts):
+            literal = re.escape(evidence)
+            qualifier = "(?:" + APPROX.pattern + ")"
+            qualified = re.search(
+                qualifier
+                + r"\s+(?:(?:a|bore|stroke|pressure|qty|quantity|is)\s+){0,2}"
+                + literal
+                + "|"
+                + literal
+                + r"\s+"
+                + qualifier,
+                source,
+                re.IGNORECASE,
+            )
+            if APPROX.search(evidence) or qualified:
                 result["status"] = "approximate"
+                if qualified and len(qualified.group()) <= 300:
+                    result["evidence"] = qualified.group()
             if row["kind"] == "quantity" and RELATIVE.search(source):
                 result["status"] = "inferred"
         checked.append(result)
@@ -179,7 +205,11 @@ def baseline(source: str) -> dict:
                 if kind == "quantity":
                     literal = (match.group(1) or match.group(2)).strip()
                 evidence = match.group().strip()
-                if evidence in source:
+                if (
+                    evidence in source
+                    and numeric_literal(evidence, source)
+                    and numeric_literal(literal, evidence)
+                ):
                     add(kind, literal, "stated", evidence)
         for attribute, value in line["attributes"].items():
             add("attribute", f"{attribute}: {value}", "inferred")

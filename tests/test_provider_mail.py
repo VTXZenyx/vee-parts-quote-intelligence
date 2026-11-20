@@ -121,3 +121,67 @@ class ProviderMailTests(unittest.TestCase):
         self.assertCountEqual([r["status"] for r in results], ["duplicate", "accepted"])
         item = store.detail(self.path, results[0]["enquiry_id"])
         self.assertEqual((len(item["thread"]), len(item["history"])), (1, 1))
+
+    def test_early_child_is_parent_of_next_reply_even_when_receipt_ids_sort_differently(
+        self,
+    ):
+        child = self.receive("gmail-details")
+        root = self.receive("gmail-cylinder")
+        self.assertEqual(retry(self.path, child["id"])["status"], "accepted")
+        grandchild = self.receive("gmail-second-reply")
+        self.assertEqual(
+            (grandchild["status"], grandchild["enquiry_id"]),
+            ("accepted", root["enquiry_id"]),
+        )
+
+    def test_explicit_separate_request_with_valid_reply_headers_held(self):
+        self.receive("graph-bearing")
+        changed = copy.deepcopy(FIXTURES["graph-revision"]["message"])
+        changed["body"]["content"] = (
+            "Separate enquiry: please quote 3 pneumatic cylinders."
+        )
+        self.assertEqual(ingest(self.path, "outlook", changed)["status"], "held")
+
+    def test_restore_v2_schema_and_upgrade_before_new_receipt(self):
+        with sqlite3.connect(self.path) as db:
+            db.execute("DROP TABLE provider_mail")
+            db.execute("PRAGMA user_version=2")
+        restored = self.path.with_name("v2-restored")
+        copy_workspace(self.path, restored)
+        before = store.inbox(restored)
+        store.init(restored)
+        self.assertEqual(before, store.inbox(restored))
+        fixture = FIXTURES["gmail-cylinder"]
+        key = ingest(restored, fixture["provider"], fixture["message"])["enquiry_id"]
+        after = self.path.with_name("v3-restored")
+        copy_workspace(restored, after)
+        preserved = store.detail(after, key)
+        self.assertEqual(
+            ingest(after, fixture["provider"], fixture["message"])["status"],
+            "duplicate",
+        )
+        self.assertEqual(store.detail(after, key), preserved)
+
+    def test_matched_provider_reply_cannot_drop_a_subject_only_pressure_requirement(
+        self,
+    ):
+        fixture = copy.deepcopy(FIXTURES["graph-bearing"]["message"])
+        fixture.update(subject="Adapter quotation")
+        fixture["body"]["content"] = "1 x ADP-BSPP-14."
+        root = ingest(self.path, "outlook", fixture)
+        self.assertEqual(
+            store.detail(self.path, root["enquiry_id"])["status"], "needs_verification"
+        )
+        child = copy.deepcopy(FIXTURES["graph-revision"]["message"])
+        child["subject"] = "Working pressure 350 bar"
+        child["body"]["content"] = "Thanks."
+        self.assertEqual(ingest(self.path, "outlook", child)["status"], "accepted")
+        item = store.detail(self.path, root["enquiry_id"])
+        self.assertEqual(item["status"], "needs_clarification")
+        self.assertTrue(
+            any(
+                "changed email subject" in issue
+                for line in item["extraction"]["lines"]
+                for issue in line["issues"]
+            )
+        )

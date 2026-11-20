@@ -186,7 +186,7 @@ def _associate(db, m):
         return None, "Another delivery already claims this internet message ID."
     thread = db.execute(
         """SELECT * FROM provider_mail WHERE provider=? AND thread=? AND status='accepted'
-                           ORDER BY id DESC""",
+                           """,
         (m["provider"], m["thread"]),
     ).fetchall()
     if not m["parent"]:
@@ -202,18 +202,29 @@ def _associate(db, m):
             None,
             "A referenced message is missing from this provider conversation. Retry after it arrives.",
         )
-    last = thread[0]
-    if (
-        last["internet"] != m["parent"]
-        or m["at"] < json.loads(last["normalised"])["at"]
+    if re.search(
+        r"\b(?:separate|unrelated|new) (?:enquiry|inquiry|request|order)\b",
+        m["subject"] + "\n" + m["body"],
+        re.IGNORECASE,
     ):
+        return (
+            None,
+            "The message describes a separate request inside an existing conversation.",
+        )
+    parent = parents[m["parent"]]
+    item = store._load(db, parent["enquiry_id"])
+    # Workflow order can differ from receipt order when a held child is retried.
+    last = next(
+        entry for entry in reversed(item["thread"]) if entry["direction"] == "inbound"
+    )
+    if last.get("internet") != m["parent"] or m["at"] < last["at"]:
         return (
             None,
             "The reply branches from older evidence. An employee must reconcile the sequence.",
         )
-    if json.loads(last["normalised"])["sender"] != m["sender"]:
+    if last["sender"] != m["sender"]:
         return None, "The reply sender differs from the original customer."
-    return last["enquiry_id"], ""
+    return item["id"], ""
 
 
 def _accept(db, m, key):

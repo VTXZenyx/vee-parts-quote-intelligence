@@ -383,5 +383,39 @@
       "hasAttachments": false,
       "attachments": []
     }
+  },
+  "graph-missing-id": {
+    "provider": "outlook",
+    "label": "Malformed delivery \u00b7 missing conversation ID",
+    "message": {
+      "id": "AAMkM0",
+      "internetMessageId": "<b0@mail.example>",
+      "internetMessageHeaders": [
+        {
+          "name": "Message-ID",
+          "value": "<b0@mail.example>"
+        }
+      ],
+      "receivedDateTime": "2026-11-20T00:00:00+00:00",
+      "subject": "Bearing quotation",
+      "from": {
+        "emailAddress": {
+          "address": "buyer@kauri.example"
+        }
+      },
+      "toRecipients": [
+        {
+          "emailAddress": {
+            "address": "quotes@vee.example"
+          }
+        }
+      ],
+      "body": {
+        "contentType": "text",
+        "content": "Please quote 4 x BRG-6205-2RS."
+      },
+      "hasAttachments": false,
+      "attachments": []
+    }
   }
 }

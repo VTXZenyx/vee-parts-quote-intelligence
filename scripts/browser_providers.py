@@ -47,4 +47,3 @@ def exercise_providers(page: Page, address: str) -> None:
     assert state.all_text_contents() == before
     page.set_viewport_size({"width": 390, "height": 844})
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-

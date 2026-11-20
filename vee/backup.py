@@ -11,6 +11,8 @@ from contextlib import closing
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
+from vee import findings
+from vee.extraction import validate
 from vee.provider_mail import normalise
 from vee.store import ALLOWED, SCHEMA, V2_SCHEMA
 
@@ -170,6 +172,32 @@ def _verify_enquiry(raw: str, key: str, revision: int) -> dict:
     return state
 
 
+def _verify_findings(item: dict) -> None:
+    for index, saved in item.get("advisories", {}).items():
+        _, identity, subject, body = findings.select(item, index)
+        _fields(saved, method=str, model=str, source=str, notice=str, findings=list)
+        if saved["method"] not in {"deterministic", "mock", "openai"} or identity != saved["source"]:
+            raise ValueError("Advisory source or method is invalid.")
+        text = subject + "\n" + body if subject and saved["method"] == "openai" else body
+        if validate({"findings": saved["findings"]}, text) != saved["findings"]:
+            raise ValueError("Saved findings lost a source qualifier.")
+        for number, review in saved.get("reviews", {}).items():
+            if number not in {str(n) for n in range(len(saved["findings"]))}:
+                raise ValueError("Invalid reviewed finding.")
+            _fields(review, decision=str, original=str, reason=str)
+            if (review["decision"] not in {"confirm", "correct"} or not review["reason"].strip()
+                    or review["original"] != saved["findings"][int(number)]["value"]
+                    or (review["decision"] == "correct" and not review.get("replacement"))):
+                raise ValueError("Invalid finding review.")
+    for hold in item.get("correction_hold", []):
+        _fields(hold, source=str, finding=str, replacement=str, after=int)
+        findings.select(item, hold["source"])
+        if (not 1 <= hold["after"] <= len(findings.sources(item))
+                or item["status"] not in {"needs_clarification", "awaiting_reply"}
+                or item["extraction"]["ready"] or item["selected_skus"]):
+            raise ValueError("An outstanding correction needs customer clarification.")
+
+
 def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None:
     events = database.execute(
         "SELECT revision, action, detail FROM events WHERE enquiry_id=? ORDER BY revision",
@@ -266,6 +294,7 @@ def _verify_snapshot(database: sqlite3.Connection) -> None:
     ):
         state = _verify_enquiry(raw, key, revision)
         _verify_history(database, key, state)
+        _verify_findings(state)
         for message in state["thread"]:
             if "provider" in message:
                 identity = (message["provider"], message["mid"])

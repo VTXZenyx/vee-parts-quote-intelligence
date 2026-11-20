@@ -49,3 +49,7 @@ Close the commercial review with dated vendor documentation, a direct source for
 Reviewed the published openai-python 3.57.0 wheel metadata, client source, completion API and dependency lock before installation. The official Python SDK uses Apache-2.0 and lists httpx2, anyio, jiter, Pydantic, sniffio and typing-extensions as direct dependencies. The base Flask installation remains independent. The optional adapter uses structured Chat Completions and a fixed HTTPS endpoint with storage disabled. Provider processing and retention terms still apply to submitted text. This milestone authorises synthetic records only. No service request was needed to exercise the SDK through an in-memory HTTP transport.
 
 [SDK repository](https://github.com/openai/openai-python) · [Release metadata](https://pypi.org/project/openai/3.57.0/) · [API data controls](https://platform.openai.com/docs/guides/your-data)
+
+The offline message fixtures use the documented Gmail Message and MessagePart fields and Graph message, internet header and file-attachment shapes. Only the supported text subset is exercised.
+
+[Gmail message resource](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages) · [Graph message resource](https://learn.microsoft.com/en-us/graph/api/resources/message) · [Graph file attachment](https://learn.microsoft.com/en-us/graph/api/resources/fileattachment)

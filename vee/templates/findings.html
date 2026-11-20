@@ -10,7 +10,10 @@
   <p class="hint">Source {{ source }} · {{ advisory.source }}. Check the customer's words below before using a finding.</p>
   {% if advisory.notice %}<p class="issues">{{ advisory.notice }}</p>{% endif %}
   {% for number, rows in advisory.findings|groupby('item') %}<details class="candidate" {% if loop.first %}open{% endif %}>
-    <summary><strong>Requested item {{ number }}</strong></summary>
+    {% set label = (rows|selectattr('kind', 'equalto', 'reference')|first)
+                   or (rows|selectattr('kind', 'equalto', 'category')|first)
+                   or (rows|selectattr('kind', 'equalto', 'product')|first) %}
+    <summary><strong>Item {{ number }}{% if label %} · {{ label.value|truncate(85) }}{% endif %}</strong></summary>
     <div class="candidate-body"><dl class="findings-list">
       {% for row in rows %}<div><dt>{{ row.kind|capitalize }} · {{ {'stated':'Customer wording','inferred':'Possible interpretation','missing':'Needs clarification','unverified':'Unverified','conflicting':'Conflict','approximate':'Approximate'}[row.status] }}</dt>
         <dd>{{ row.value }}{% if row.value != row.evidence %}<small>From “{{ row.evidence }}”</small>{% endif %}</dd>
