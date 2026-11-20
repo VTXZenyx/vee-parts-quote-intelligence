@@ -1,5 +1,8 @@
+import sqlite3
 import unittest
 from collections import Counter
+from dataclasses import replace
+from unittest.mock import patch
 
 from vee import catalogue, store
 
@@ -54,10 +57,19 @@ class PartialQuoteTests(unittest.TestCase):
             self.assertEqual(item["quotes"][0]["total"], "67.62")
             with self.assertRaises(ValueError):
                 act("edit_quote", quantity="7")
+            sku = line["sku"]
+            for changes in ({"stock": 2}, {"stock": None}, {"price": "7.50"}):
+                revised = replace(catalogue.BY_SKU[sku], **changes)
+                with patch.dict(catalogue.BY_SKU, {sku: revised}), self.assertRaisesRegex(ValueError, "Refresh"):
+                    act("approve_quote")
             act("approve_quote")
             recovered = Path(directory) / "copy.sqlite"
             backup.copy_workspace(path, recovered)
             self.assertEqual(store.detail(recovered, key), item)
+            with sqlite3.connect(recovered) as db:
+                db.execute("UPDATE quotes SET snapshot=json_set(snapshot,'$.lines[0].requested_quantity',6)")
+            with self.assertRaisesRegex(ValueError, "accepted availability"):
+                backup.copy_workspace(recovered, Path(directory) / "invalid.sqlite")
 
     def test_only_safe_single_line_shortages_qualify(self):
         for body, account in [

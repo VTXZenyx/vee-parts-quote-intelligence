@@ -1,6 +1,6 @@
 # VEE Parts & Quote Intelligence
 
-A local employee workspace for investigating industrial parts enquiries and reviewing quotations in New Zealand dollars. This development release uses a synthetic mailbox, a small fixture catalogue and account-specific commercial records. Employees can inspect the original request, review evidence, approve questions, record a simulated reply and issue a decision on a versioned quotation.
+A local employee workspace for investigating industrial parts enquiries and reviewing quotations in New Zealand dollars. This development release uses a synthetic mailbox, a 45-SKU warehouse in Hamilton and six fictional customer accounts. Employees can inspect the original request, review evidence, approve questions, record a simulated reply and issue a decision on a versioned quotation.
 
 ## Run locally
 
@@ -14,16 +14,11 @@ python3.12 -m venv .venv
 
 Open the loopback address on port 5050 printed by Flask. On first run the server seeds the local SQLite database at `instance/workspace.sqlite3`. Subsequent starts preserve enquiry history and decisions. Set `VEE_DATABASE` to a different filesystem path for a separate synthetic workspace. The local development server represents one demo employee. Use only on a trusted machine with synthetic records.
 
-## Start a guided demo
+## Start a product demonstration
 
-1. On **Enquiry workspace**, select **Start guided demo**. VEE creates a separate seeded workspace and prepares a Harbour Packaging email for two cylinders.
-2. Select **Receive test email**. Read the original message, then find the missing specifications under **Technical investigation**. **VEE analysis** links findings to the customer’s words.
-3. Review the question in **Employee review** and select **Approve clarification**. Choose **Load the cylinder reply**, then **Receive demo reply**.
-4. Compare the measurements with the suggested cylinder. Confirm the part and select **Verify match**. Create a draft quotation.
-5. Review two cylinders at NZD 137.50 each, NZD 41.25 GST and the NZD 316.25 total. Follow **Go to employee review** and approve the saved version.
-6. Use the guide’s links to inspect message and audit history. **Exit guide** keeps you in the demo with the current enquiry. **Return to original workspace** switches back to the original records. Start again from the dashboard for a fresh run.
+Open **Enquiry workspace**, choose a scenario and select **Start product demonstration**. Each run creates an isolated SQLite workspace. The default Harbour Packaging story takes a request for two replacement cylinders through clarification, technical verification, a draft, employee approval and a printable NZD 316.25 customer preview. The other stories cover a straightforward bearing order, a partial supply, an unsafe pressure request and a revised contract order.
 
-Guide instructions follow the prepared cylinder scenario and the enquiry's actual stage. The guide uses the same employee forms as regular work. Reopening the browser in the same session allows **Continue guided demo**. After a server restart the demo database is retained and the guide can be started again.
+The enquiry shows the customer’s request, the proposed part or missing details, commercial blockers and the employee decision. Expand the message analysis, catalogue evidence or histories for detail. **Exit guide** keeps the demo open. **Return to original workspace** brings back the original queue. Use the [five-minute presenter script and discovery questions](SHOWCASE.md).
 
 ## Try the Demo Email Inbox
 
@@ -34,13 +29,13 @@ Guide instructions follow the prepared cylinder scenario and the enquiry's actua
 
 Choose the unavailable adapter to see a commercial hold. Choose the pressure conflict to see a technical block, then use the corrected pressure reply and reconcile it before a part can be verified. The inbox also includes exact bearing references, multiple parts, ambiguous quantities, irrelevant messages and a request to skip approval.
 
-Demo replies attach to a selected enquiry once an employee has approved a clarification. Enquiry IDs and message IDs apply within the current demo workspace. The application uses local synthetic addresses, catalogue evidence and commercial records. It supports a single local employee and uses the fixture photograph for manual inspection. Real mail, arbitrary attachment uploads, image inference, ERP stock reservations, and production authentication are outside the demo.
+Demo replies attach to a selected enquiry after an approved clarification. An approved demo-email quotation also accepts a complete revised order, which reopens review. Enquiry IDs and message IDs apply within the current demo workspace. The application uses local synthetic addresses, catalogue evidence and commercial records. It supports a single local employee and uses the fixture photograph for manual inspection. Real mail, arbitrary attachment uploads, image inference, ERP stock reservations, and production authentication are outside the demo.
 
 ## Try intelligent enquiry processing
 
 1. Open **Demo Email Inbox → Provider fixtures**. Select the Gmail fixture for Harbour’s missing cylinder dimensions first. Expand the held delivery to read the reason, original provider record and normalised envelope.
 2. Import **Harbour · cylinder request**. On the held reply select **Retry association**, then open the linked enquiry. Outlook’s independent cylinder request has the same subject and opens a different enquiry. **Replay provider delivery** exercises the original stored payload.
-3. Under **VEE analysis**, switch between customer messages and follow **Read source message** to inspect the quoted evidence. The default method is deterministic. Open **Change processing method** and select **Mock model** for the offline demonstration. The technical investigation shows candidate catalogue evidence and outstanding restrictions.
+3. Expand **Message analysis and processing options**. Under **VEE analysis**, switch between customer messages and follow **Read source message** to inspect the quoted evidence. The default method is deterministic. Open **Change processing method** and select **Mock model** for the offline demonstration. The technical investigation shows candidate catalogue evidence and outstanding restrictions.
 4. Open **Review or correct a finding**. Confirm a reading or flag a correction with a proposed value and reason. A correction reopens technical review and makes existing quote versions historical. Obtain a new customer reply beginning with `Revised request:` and reconcile the complete request before reverifying. The original messages remain available in the thread.
 5. For the complete cylinder request, verify the match, draft the quote and review NZD 316.25 including GST. To see an approval become historical, approve the Outlook bearing quotation and then import **Kauri · corrected bearing quantity**.
 

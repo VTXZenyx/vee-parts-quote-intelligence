@@ -7,7 +7,8 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 Record = dict[str, Any]
-VERSION = "SYN-2026-11-18"
+VERSION = "SYN-2026-11-20"
+ORIGINAL_VERSION = "SYN-2026-11-18"
 CENT = Decimal("0.01")
 GST_RATE = Decimal("0.15")
 MAX_QUANTITY = 9999
@@ -170,6 +171,8 @@ def _warehouse_lines() -> list[Part]:
     return rows
 
 
+# Preserve provenance for unchanged records in pre-showcase workspaces.
+ORIGINAL_SKUS = frozenset(part.sku for part in PARTS)
 PARTS += tuple(_warehouse_lines())
 BY_SKU = {p.sku: p for p in PARTS}
 # Explicit net rates from the synthetic account agreement. Some agreements forbid fallback.
@@ -242,6 +245,9 @@ def _commercial(part: Part, account: str) -> Record:
                   else "Out of stock · supplier confirmation required")
         )
     )
+    price_version = ORIGINAL_VERSION if part.sku in ORIGINAL_SKUS else VERSION
+    if customer in CONTRACT_ONLY and contract_price:
+        price_version = VERSION
     return {
         "stock": part.stock,
         "availability": availability,
@@ -250,7 +256,7 @@ def _commercial(part: Part, account: str) -> Record:
         if contract_price
         else ("List price" if price else "Contract price missing"),
         "delivery": "Delivery date unconfirmed",
-        "commercial_source": f"Synthetic stock and price book / {VERSION}",
+        "commercial_source": f"Synthetic stock and price book / {price_version}",
     }
 
 
@@ -260,7 +266,7 @@ def _candidate(part: Part, account: str, evidence: list[str]) -> Record:
         "name": part.name,
         "family": part.family,
         "specs": dict(part.specs),
-        "source": f"Synthetic catalogue / {VERSION} / {part.sku}",
+        "source": f"Synthetic catalogue / {ORIGINAL_VERSION if part.sku in ORIGINAL_SKUS else VERSION} / {part.sku}",
         "evidence": evidence,
         "discontinued": part.discontinued,
         **_commercial(part, account),
@@ -453,6 +459,10 @@ def _analyse_line(text: str, account: str, ambiguous: bool) -> Record:
             compatible.append(product)
         candidates.append(_candidate(product, account, evidence))
 
+    # Surface the parts meeting all parsed requirements first, including a
+    # dimension-only match late in a warehouse family. Ties keep shelf order.
+    compatible_skus = {product.sku for product in compatible}
+    candidates.sort(key=lambda candidate: candidate["sku"] not in compatible_skus)
     issues: list[str] = []
     questions: list[str] = []
     missing = [] if part or not pool else [k for k in pool[0].specs if k not in attrs]
@@ -664,6 +674,7 @@ def build_quote(
     gst = (subtotal * GST_RATE).quantize(CENT, rounding=ROUND_HALF_UP)
     return {
         "lines": lines,
+        **({"partial_offer": offer} if offer else {}),
         "currency": "NZD",
         "subtotal": str(subtotal),
         "gst": str(gst),

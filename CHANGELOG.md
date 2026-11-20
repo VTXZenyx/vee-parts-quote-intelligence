@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-20 · Industrial distributor showcase
+
+Added the 45-SKU Hamilton warehouse, five isolated guided scenarios and a printable approved customer preview. Stock-limited single-line quotations require explicit employee acceptance and preserve the balance outstanding. Complete revised customer orders retire the old approval and require reconciliation and a new technical and commercial decision. The enquiry now shows the request and blockers before optional evidence and histories. See [the presenter script](SHOWCASE.md).
+
 ## 2026-11-20 · Professional employee workspace
 
 - Added compact queue filters, stage counts, a keyboard skip link and active navigation.

@@ -96,6 +96,17 @@ Findings are advisory and cannot select a SKU, authorise a price or advance appr
 
 Startup extends V2 workspaces in place. Existing V2 demo cookies upgrade their associated workspace on access. Recovery accepts a V2 schema and verifies V3 receipt-to-source links, advisory evidence, corrections, revisions and quote decisions in a V3 snapshot.
 
-## V4 guided workflow
+## Guided workspace
 
-The guide stores its workspace and enquiry selection in the signed browser session. It creates an isolated demo using the existing workspace action, then links the received cylinder example to the guide. The enquiry's saved status drives the guidance. Employee decisions use the same revision-bound routes and quotation rules as regular work. Exiting the guide clears the selection and preserves the demo database. Switching to the original workspace clears both the guide and the demo cookie.
+The guide stores its workspace and enquiry selection in the signed browser session. It creates an isolated demo using the existing workspace action, then links the received example to the guide only when the selected scenario and original message fields agree. The enquiry's saved status drives the guidance. Employee decisions use the same revision-bound routes and quotation rules as regular work. Exiting the guide clears the selection and preserves the demo database. Switching to the original workspace clears both the guide and the demo cookie.
+
+
+## Distributor showcase
+
+The source-controlled warehouse has 14 bearings, 12 cylinders, 11 fasteners and eight adapters. The V5 catalogue edition retains the source identifiers of unchanged V4 records so an existing verified match can still be checked. No catalogue edit is applied to saved quote snapshots. Zero stock and unknown stock produce distinct holds. Harbour Packaging has a net cylinder rate of NZD 137.50. Contract Only Engineering has a sealed-bearing rate and requires an agreement on every other SKU. The other four accounts use the list price.
+
+A single technically resolved SKU can qualify for partial supply when its sole issue is a positive stock shortfall and pricing is authorised. The employee accepts a specific quantity and reference before drafting. Approval rechecks the current evidence, stock and price against the saved decision. The snapshot records the original request, partial offer, quoted quantity, net basis and tax. A short line in a multi-product request holds the whole draft. An employee can still explicitly revise quantities on an otherwise eligible draft. The customer preview derives outstanding units from saved requested and quoted quantities.
+
+The local demo mailbox accepts a complete revised order on an approved demo-email thread. The same transaction checks its address, subject, message identity and enquiry revision, records the inbound message and reopens technical review. It preserves historical quotes. A human reconciles the replacement request and verifies the new draft before approval. The read-only customer-preview route serves the latest approved snapshot in the active workspace. A missing approval or superseded version returns HTTP 409. The local print view has no send action or public sharing.
+
+The schema remains compatible with existing workspaces. Recovery validates partial quotation decisions and quantities alongside the existing immutable quote, revision and receipt checks.

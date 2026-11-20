@@ -204,6 +204,7 @@ class DemoMail(unittest.TestCase):
         act("approve_quote")
         self.assertEqual(item["quotes"][0], first)
         document = self.client.get(preview)
+        self.assertEqual(self.client.get(preview + "?version=1").status_code, 409)
         self.assertIn(b"474.38", document.data)
         self.assertNotIn(b"316.25", document.data)
         snapshot = self.path.with_name("revised.sqlite")

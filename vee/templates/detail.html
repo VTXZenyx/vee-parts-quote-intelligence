@@ -19,7 +19,9 @@
       <div class="section-heading">{{ icon('mail',20) }}<h2>Customer request</h2></div>
       <div class="message-top"><strong>{{ item.customer }}</strong><span>{{ item.sender }}</span></div>
       {% if item.thread[0].recipient %}<small class="message-address">To {{ item.thread[0].recipient }} · Demo email</small>{% endif %}
-      <p class="message-body">{{ item.body }}</p>
+      {% if item.basis_inbound %}<p class="message-body">{{ inbound[item.basis_inbound].body }}</p>
+      <details><summary>Original customer request</summary><p class="message-body">{{ item.body }}</p></details>
+      {% else %}<p class="message-body">{{ item.body }}</p>{% endif %}
       {% if item.attachments %}<div class="attachments"><h3>Attachments</h3>{% for attachment in item.attachments %}<details class="attachment"><summary>{{ icon('paperclip',15) }}{{ attachment.name }}</summary>{% if not item.thread[0].provider and attachment.name == 'inspection-fitting.webp' %}<img class="inspection-photo" src="{{ url_for('static', filename='inspection-fitting.webp') }}" alt="Synthetic inspection photo of a worn fitting on a workshop bench">{% endif %}<p class="message-body">{{ attachment.text }}</p></details>{% endfor %}</div>{% endif %}
       <h3>What VEE found</h3>
       {% for line in item.extraction.lines %}
@@ -27,13 +29,17 @@
           {% if line.sku %} · {{ line.sku }}{% endif %}</p>
         {% for match in line.candidates if match.sku == line.sku %}
           <p>{{ match.name }} · {{ match.availability }} · {{ 'NZD ' ~ match.unit_price if match.unit_price else 'Price unconfirmed' }} · {{ match.price_basis }}</p>
+          {% if line.status == 'verified' and item.status == 'commercial_hold' %}
+            {% set requested = item.extraction.lines|selectattr('sku','equalto',line.sku)|sum(attribute='quantity') %}
+            {% if match.stock is none %}<p>{{ requested }} requested · availability awaits supplier confirmation.</p>
+            {% elif requested > match.stock %}<p>{{ requested }} requested · {{ match.stock }} on hand · {{ requested - match.stock }} awaiting supply.</p>{% endif %}
+          {% endif %}
           {% if item.status in ['needs_verification','commercial_hold'] %}<p class="hint">{% for key, val in match.specs.items() %}{{ key|capitalize }} {{ val }}{{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}
         {% endfor %}
         {% if line.issues %}<div class="issues"><strong>Needs attention</strong><ul>{% for issue in line.issues %}<li>{{ issue }}</li>{% endfor %}
           {% for question in line.questions %}<li>{{ question }}</li>{% endfor %}
           {% for candidate in line.candidates if candidate.sku == line.reference %}{% for fact in candidate.evidence if fact.startswith('Conflict') %}<li>{{ fact }}</li>{% endfor %}{% endfor %}</ul></div>{% endif %}
       {% endfor %}
-      {% if item.basis_inbound %}<p><strong>Current customer revision</strong> · {{ inbound[item.basis_inbound].body }}</p>{% endif %}
       <small class="subtle">Local catalogue checks{% if advisory %} · {{ {'mock':'Mock extraction','deterministic':'Deterministic extraction','openai':'Optional AI extraction'}[advisory.method] }}{% endif %}</small>
     </section>
     {% if item.quotes %}{% include 'quotation.html' %}{% endif %}

@@ -45,6 +45,7 @@
 {% elif item.status == 'approved' %}
   <h2>Quotation approved</h2><p>Version {{ item.quotes[-1].version }} has employee approval. The quotation is available to print.</p>
   <a class="button primary" href="{{ url_for('customer_preview', id=item.id, version=item.quotes[-1].version) }}">Open customer preview</a>
+  {% if not guide and item.thread[0].message_id %}<a class="text-link" href="{{ url_for('demo_email', reply_to=item.id) }}">Record a revised customer order</a>{% endif %}
 {% elif item.status == 'commercial_hold' %}
   <h2>Commercial hold</h2><p>Review the outstanding stock or pricing issues in the technical investigation before a quotation can progress.</p><a href="#evidence" class="button">Review issues {{ icon('arrow-right',15) }}</a>
   {% if partial %}<form method="post" action="{{ post }}">{{ identity(item, csrf) }}

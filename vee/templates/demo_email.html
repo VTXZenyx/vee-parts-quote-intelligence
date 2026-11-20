@@ -27,6 +27,7 @@
       <p><strong>{{ values.customer }}</strong> · {{ values.sender }}</p>
     {% elif item %}
       <p>Replying to <a href="{{ url_for('enquiry', id=item.id) }}">{{ item.id }} · {{ item.subject }}</a>. The sender, recipient and subject are tied to this conversation.</p>
+      {% if item.status == 'approved' %}<p>Start with “Revised request:” and give the complete replacement order. Receiving it withdraws the current approval.</p>{% endif %}
       <details class="mail-examples"><summary>Try a reply example</summary><ul>
         {% for key, example in reply_examples.items() %}<li><a href="{{ url_for('demo_email', reply_to=item.id, reply_example=key) }}">{{ example[0] }}</a></li>{% endfor %}
       </ul></details>
@@ -39,7 +40,7 @@
         <button type="submit" class="button">Load example</button></div>
       </form>
     {% endif %}
-    <form method="post" action="{{ url_for('demo_email') }}" class="mail-form">
+    <form method="post" action="{{ url_for('demo_email', scenario=guide.scenario if showing and not item else none) }}" class="mail-form">
       <input name="csrf" type="hidden" value="{{ csrf }}">
       {% if showing %}
         {% for key in ['customer','sender','recipient','subject','message_id'] %}<input type="hidden" name="{{ key }}" value="{{ values[key] }}">{% endfor %}
@@ -59,7 +60,7 @@
       <p class="hint" id="address-hint">Use fictional addresses ending in <code>.example</code>.</p>
       <label for="mail-subject">Subject</label><input id="mail-subject" name="subject" required maxlength="{{ 204 if item else 200 }}" value="{{ values.subject }}" {{ 'readonly' if item }}>
       {% endif %}
-      <label for="mail-body">Message</label><textarea id="mail-body" name="body" rows="6" maxlength="8000" required>{{ values.body }}</textarea>
+      <label for="mail-body">Message</label><textarea id="mail-body" name="body" {{ 'readonly' if showing }} rows="6" maxlength="8000" required>{{ values.body }}</textarea>
       {% if not showing %}<details class="mail-id"><summary>Message identifier</summary><p>VEE uses this identifier to recognise duplicate deliveries.</p>
         <label for="message-id">Message ID</label><input class="mono" id="message-id" name="message_id" value="{{ values.message_id }}" readonly>
       </details>{% endif %}
