@@ -59,5 +59,12 @@
   {"id":"leading-zero-mm","text":"2 x CYL-32-100-DA, bore 032 mm","status":["verified"],"skus":["CYL-32-100-DA"],"ready":true,"attributes":{"bore":"32 mm"},"total":"356.50"},
   {"id":"unrounded-measurement","text":"2 x CYL-32-100-DA, bore 32.000000000000000000000000000000001 mm","status":["conflict"],"skus":[null],"ready":false},
   {"id":"ambiguous-comma-list","text":"2 x CYL-32-100-DA, cylinder","status":["verified","clarify"],"skus":["CYL-32-100-DA",null],"ready":false},
-  {"id":"explicit-incompatible-unit","text":"2 x CYL-32-100-DA, bore 32.0 in","status":["review"],"skus":[null],"ready":false}
+  {"id":"explicit-incompatible-unit","text":"2 x CYL-32-100-DA, bore 32.0 in","status":["review"],"skus":[null],"ready":false},
+  {"id":"showcase-bearing-dimensions","text":"2 bearings, bore 17 mm, outside diameter 40 mm, width 12 mm, metal shields","status":["verified"],"skus":["BRG-6203-ZZ"],"ready":true,"total":"22.54"},
+  {"id":"showcase-unknown-stock","text":"1 x BRG-6208-ZZ","status":["verified"],"skus":["BRG-6208-ZZ"],"ready":false},
+  {"id":"showcase-partial-needs-employee","text":"10 x BRG-6203-ZZ","status":["verified"],"skus":["BRG-6203-ZZ"],"ready":false},
+  {"id":"showcase-restricted-agreed-rate","text":"4 x BRG-6205-2RS","account":"Contract Only Engineering","status":["verified"],"skus":["BRG-6205-2RS"],"ready":true,"total":"46.00"},
+  {"id":"showcase-thread-mismatch","text":"1 x ADP-BSPT-38, BSPP thread","status":["conflict"],"skus":[null],"ready":false},
+  {"id":"showcase-fastener-grade","text":"1 x BLT-M12-50-G88, grade 10.9","status":["conflict"],"skus":[null],"ready":false},
+  {"id":"showcase-revised-contract","text":"3 x CYL-32-100-DA","account":"Harbour Packaging","status":["verified"],"skus":["CYL-32-100-DA"],"ready":true,"total":"474.38"}
 ]

@@ -10,7 +10,7 @@ from werkzeug.serving import make_server
 
 from scripts.browser_dashboard import exercise_dashboard
 from scripts.browser_demo import exercise_demo
-from scripts.browser_guide import exercise_guide
+from scripts.browser_guide import exercise_guide, exercise_scenarios
 from scripts.browser_providers import exercise_providers
 from scripts.browser_review import exercise_review
 from vee.web import create_app
@@ -103,6 +103,7 @@ def main() -> None:
                 exercise_providers(page, address)
                 exercise_guide(page, address, 1366)
                 exercise_guide(page, address, 390)
+                exercise_scenarios(page, address)
                 assert not errors, errors
                 browser.close()
             print("Browser workflow and mobile layout checks passed.")

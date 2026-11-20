@@ -1,0 +1,16 @@
+{% from 'components.html' import icon, date %}
+<!doctype html>
+<html lang="en-NZ"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quotation {{ item.id }} · Version {{ item.quotes[-1].version }} · VEE Industrial Supplies</title>
+<link rel="stylesheet" href="{{ url_for('static',filename='workspace.css') }}">
+<script defer src="{{ url_for('static',filename='workspace.js') }}"></script></head>
+<body><main class="document shell">
+<nav class="breadcrumb no-print"><a href="{{ url_for('enquiry',id=item.id) }}">{{ icon('arrow-left',15) }} Back to employee enquiry</a></nav>
+<article class="document-sheet">
+<header class="document-head"><div><p class="document-label">Fictional distributor · Customer preview</p>
+<h1>VEE Industrial Supplies</h1><p>Hamilton, New Zealand · quotes@vee.example</p></div>
+<strong class="mono">Q-{{ item.id[4:] }}-V{{ item.quotes[-1].version }}</strong></header>
+{% include 'quotation.html' %}
+<footer class="document-terms"><h3>Supply terms</h3><p>Quantities and prices are from the approved sample quotation. Stock is unreserved. Delivery requires supplier confirmation. Any outstanding quantity requires a separate confirmed offer.</p>
+<p>Synthetic demonstration document · No order or payment is created.</p></footer>
+</article></main></body></html>

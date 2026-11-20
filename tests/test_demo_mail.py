@@ -172,3 +172,41 @@ class DemoMail(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertIn(b"Open a fresh form", response.data)
         self.assertEqual(len(store.inbox(self.path)), len(store.SEEDS))
+
+    def test_approved_preview_and_customer_revision_use_saved_versions(self):
+        key, _ = self.deliver(self.envelope(body="2 x CYL-32-100-DA"))
+        preview = f"/enquiries/{key}/customer-preview"
+        item = store.detail(self.path, key)
+
+        def act(action, **fields):
+            nonlocal item
+            item = store.act(self.path, key, action, {"revision": item["revision"], **fields})
+
+        self.assertEqual(self.client.get(preview).status_code, 409)
+        act("verify_match", sku="CYL-32-100-DA")
+        act("create_quote")
+        first = item["quotes"][0]
+        self.assertEqual(self.client.get(preview).status_code, 409)
+        act("approve_quote")
+        document = self.client.get(preview)
+        self.assertEqual(document.status_code, 200)
+        self.assertIn(b"316.25", document.data)
+        self.assertNotIn(b"Audit history", document.data)
+        revised = self.envelope(subject="Re: Cylinder quotation", body="Revised request: 3 x CYL-32-100-DA.")
+        with self.assertRaisesRegex(ValueError, "changed"):
+            self.deliver(revised, enquiry_id=key, revision="1")
+        self.deliver(revised, enquiry_id=key, revision=str(item["revision"]))
+        item = store.detail(self.path, key)
+        self.assertEqual(self.client.get(preview).status_code, 409)
+        act("reconcile_requirements", reason="Complete replacement order received")
+        act("verify_match", sku="CYL-32-100-DA")
+        act("create_quote")
+        act("approve_quote")
+        self.assertEqual(item["quotes"][0], first)
+        document = self.client.get(preview)
+        self.assertEqual(self.client.get(preview + "?version=1").status_code, 409)
+        self.assertIn(b"474.38", document.data)
+        self.assertNotIn(b"316.25", document.data)
+        snapshot = self.path.with_name("revised.sqlite")
+        backup.copy_workspace(self.path, snapshot)
+        self.assertEqual(store.detail(snapshot, key), item)

@@ -7,10 +7,12 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 Record = dict[str, Any]
-VERSION = "SYN-2026-11-18"
+VERSION = "SYN-2026-11-20"
+ORIGINAL_VERSION = "SYN-2026-11-18"
 CENT = Decimal("0.01")
 GST_RATE = Decimal("0.15")
 MAX_QUANTITY = 9999
+SHORT_STOCK = "Insufficient confirmed stock. Supplier availability and delivery are unconfirmed."
 
 
 @dataclass(frozen=True)
@@ -19,7 +21,7 @@ class Part:
     family: str
     name: str
     specs: dict[str, str]
-    stock: int
+    stock: int | None
     price: str
     discontinued: bool = False
 
@@ -44,7 +46,7 @@ def _bearing(seal: str) -> dict[str, str]:
     }
 
 
-PARTS = (
+PARTS: tuple[Part, ...] = (
     Part(
         "CYL-32-100-DA",
         "Pneumatic cylinder",
@@ -129,11 +131,54 @@ PARTS = (
         "21.50",
     ),
 )
+
+# Additional shelf lines in the Hamilton demonstration warehouse. Each tuple is
+# a fictional stock count and NZD list price for a distinct replacement part.
+def _warehouse_lines() -> list[Part]:
+    rows = []
+    for series, bore, od, width, qty, price in (
+        ("6202", 15, 35, 11, 24, "8.50"), ("6203", 17, 40, 12, 6, "9.80"),
+        ("6204", 20, 47, 14, 36, "11.60"), ("6206", 30, 62, 16, 18, "15.75"),
+        ("6207", 35, 72, 17, 8, "19.50"), ("6208", 40, 80, 18, 3, "24.90"),
+    ):
+        for suffix, closure in (("2RS", "rubber seals"), ("ZZ", "metal shields")):
+            rows.append(Part(f"BRG-{series}-{suffix}", "Bearing",
+                             f"{series} deep-groove bearing · {closure}",
+                             {"bore": f"{bore} mm", "outside diameter": f"{od} mm",
+                              "width": f"{width} mm", "closure": closure},
+                             None if (series, suffix) == ("6208", "ZZ") else qty, price))
+    for bore, stroke, qty, price in (
+        (32, 50, 8, "134.50"), (32, 200, 3, "186.00"), (40, 50, 5, "162.00"),
+        (40, 160, 3, "199.00"), (40, 200, 0, "216.00"), (50, 50, 4, "201.00"),
+        (50, 100, 6, "227.50"), (50, 160, 2, "250.00"),
+    ):
+        rows.append(Part(f"CYL-{bore}-{stroke}-DA", "Pneumatic cylinder",
+                         f"ISO cylinder · {bore} × {stroke} mm", _cylinder(bore, stroke), qty, price))
+    for length, qty, price in ((30, 300, "1.95"), (40, 150, "2.40"), (50, 120, "2.65"),
+                               (60, 70, "3.10"), (100, 45, "4.75")):
+        for grade in ("8.8", "10.9"):
+            rows.append(Part(f"BLT-M12-{length}-G{grade.replace('.', '')}", "Fastener",
+                             f"M12 × {length} hex bolt · grade {grade}",
+                             {"thread": "M12", "length": f"{length} mm", "pitch": "1.75 mm",
+                              "grade": grade}, qty, price))
+    for thread, pressure, qty, price in (("BSPP", 250, 10, "24.50"), ("NPT", 200, 6, "26.50"),
+                                         ("BSPT", 160, 4, "27.00")):
+        for size in ("3/8", "1/2"):
+            rows.append(Part(f"ADP-{thread}-{size.replace('/', '')}", "Hydraulic adapter",
+                             f"Hydraulic nipple · {size} in {thread}",
+                             {"thread": thread, "size": f"{size} in", "pressure": f"{pressure} bar",
+                              "connection": "male to male"}, qty, price))
+    return rows
+
+
+# Preserve provenance for unchanged records in pre-showcase workspaces.
+ORIGINAL_SKUS = frozenset(part.sku for part in PARTS)
+PARTS += tuple(_warehouse_lines())
 BY_SKU = {p.sku: p for p in PARTS}
 # Explicit net rates from the synthetic account agreement. Some agreements forbid fallback.
 CONTRACTS = {
     "harbour packaging": {"CYL-32-100-DA": "137.50"},
-    "contract only engineering": {},
+    "contract only engineering": {"BRG-6205-2RS": "10.00"},
 }
 CONTRACT_ONLY = {"contract only engineering"}
 FAMILIES = {
@@ -196,9 +241,13 @@ def _commercial(part: Part, account: str) -> Record:
         else (
             f"{part.stock} on hand"
             if part.stock
-            else "Special order · supplier availability unknown"
+            else ("Availability unknown · supplier confirmation required" if part.stock is None
+                  else "Out of stock · supplier confirmation required")
         )
     )
+    price_version = ORIGINAL_VERSION if part.sku in ORIGINAL_SKUS else VERSION
+    if customer in CONTRACT_ONLY and contract_price:
+        price_version = VERSION
     return {
         "stock": part.stock,
         "availability": availability,
@@ -207,7 +256,7 @@ def _commercial(part: Part, account: str) -> Record:
         if contract_price
         else ("List price" if price else "Contract price missing"),
         "delivery": "Delivery date unconfirmed",
-        "commercial_source": f"Synthetic stock and price book / {VERSION}",
+        "commercial_source": f"Synthetic stock and price book / {price_version}",
     }
 
 
@@ -217,7 +266,7 @@ def _candidate(part: Part, account: str, evidence: list[str]) -> Record:
         "name": part.name,
         "family": part.family,
         "specs": dict(part.specs),
-        "source": f"Synthetic catalogue / {VERSION} / {part.sku}",
+        "source": f"Synthetic catalogue / {ORIGINAL_VERSION if part.sku in ORIGINAL_SKUS else VERSION} / {part.sku}",
         "evidence": evidence,
         "discontinued": part.discontinued,
         **_commercial(part, account),
@@ -350,7 +399,8 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
         r"(?<![\w./+-])(?:(?:working )?pressure\s*[:=]?\s*)?(\d+(?:\.\d+)?)\s*bar\b",
         " bar",
     )
-    capture("size", r'(?<![\w/])1/4\s*(?:in(?:ch(?:es)?)?\b|")', fixed="1/4 in")
+    for size in ("1/4", "3/8", "1/2"):
+        capture("size", rf'(?<![\w/]){size}\s*(?:in(?:ch(?:es)?)?\b|")', fixed=f"{size} in")
     capture("grade", r"\bgrade\s+(\d+\.\d+)\b")
     return (
         {k: " / ".join(sorted(v)) for k, v in found.items()},
@@ -409,6 +459,10 @@ def _analyse_line(text: str, account: str, ambiguous: bool) -> Record:
             compatible.append(product)
         candidates.append(_candidate(product, account, evidence))
 
+    # Surface the parts meeting all parsed requirements first, including a
+    # dimension-only match late in a warehouse family. Ties keep shelf order.
+    compatible_skus = {product.sku for product in compatible}
+    candidates.sort(key=lambda candidate: candidate["sku"] not in compatible_skus)
     issues: list[str] = []
     questions: list[str] = []
     missing = [] if part or not pool else [k for k in pool[0].specs if k not in attrs]
@@ -480,10 +534,10 @@ def _analyse_line(text: str, account: str, ambiguous: bool) -> Record:
     sku = compatible[0].sku if status == "verified" else None
     if sku and quantity:
         commercial = _commercial(BY_SKU[sku], account)
-        if quantity > commercial["stock"]:
-            issues.append(
-                "Insufficient confirmed stock. Supplier availability and delivery are unconfirmed."
-            )
+        if commercial["stock"] is None:
+            issues.append("Warehouse availability unknown. Confirm stock with the supplier before quoting.")
+        elif quantity > commercial["stock"]:
+            issues.append(SHORT_STOCK)
         if commercial["unit_price"] is None:
             issues.append("No authorised price is available for this account.")
     return {
@@ -522,7 +576,7 @@ def analyse(text: str, account: str = "") -> Record:
             requested[line["sku"]] += line["quantity"]
     for line in lines:
         sku = line["sku"]
-        if sku and requested[sku] > BY_SKU[sku].stock and not line["issues"]:
+        if sku and not line["issues"] and requested[sku] > (BY_SKU[sku].stock or 0):
             line["issues"].append(
                 "Combined quantity exceeds confirmed stock for this reference."
             )
@@ -544,11 +598,31 @@ def analyse(text: str, account: str = "") -> Record:
     }
 
 
+def partial_offer(analysis: Record) -> Record | None:
+    """Allow one identified item whose only issue is a positive stock shortfall."""
+    if len(analysis["lines"]) != 1 or analysis["questions"]:
+        return None
+    line = analysis["lines"][0]
+    if line["status"] != "verified" or line["issues"] != [SHORT_STOCK]:
+        return None
+    matches = [part for part in line["candidates"] if part["sku"] == line["sku"]]
+    if len(matches) != 1:
+        return None
+    part = matches[0]
+    stock = part.get("stock")
+    if (type(stock) is not int or not 0 < stock < line["quantity"]
+            or part.get("discontinued") or not part.get("unit_price")):
+        return None
+    return {"sku": line["sku"], "available": stock, "outstanding": line["quantity"] - stock}
+
+
 def build_quote(
-    analysis: Record, account: str = "", quantities: dict[str, int] | None = None
+    analysis: Record, account: str = "", quantities: dict[str, int] | None = None,
+    *, partial: bool = False,
 ) -> Record:
     """Price an entire verified enquiry. Callers supply analysis derived server-side."""
-    if not analysis.get("ready") or not analysis.get("lines"):
+    offer = partial_offer(analysis) if partial else None
+    if (not analysis.get("ready") and not offer) or not analysis.get("lines"):
         raise ValueError("Resolve every technical and commercial issue before quoting.")
     requested: Counter[str] = Counter()
     for line in analysis["lines"]:
@@ -562,6 +636,8 @@ def build_quote(
             raise ValueError("Invalid verified quotation line.")
         requested[sku] += qty
     original_quantities = requested.copy()
+    if offer:
+        requested[offer["sku"]] = offer["available"]
     if quantities is not None:
         if not isinstance(quantities, dict) or quantities.keys() - requested.keys():
             raise ValueError("Quantities may only edit verified references.")
@@ -576,10 +652,13 @@ def build_quote(
         commercial = _commercial(part, account)
         if (
             part.discontinued
+            or part.stock is None
             or quantity > part.stock
             or commercial["unit_price"] is None
         ):
             raise ValueError("Confirmed stock and authorised pricing are required.")
+        if offer and quantity > offer["available"]:
+            raise ValueError("Refresh and verify the stock before increasing this partial quotation.")
         extended = Decimal(commercial["unit_price"]) * quantity
         subtotal += extended
         lines.append(
@@ -595,6 +674,7 @@ def build_quote(
     gst = (subtotal * GST_RATE).quantize(CENT, rounding=ROUND_HALF_UP)
     return {
         "lines": lines,
+        **({"partial_offer": offer} if offer else {}),
         "currency": "NZD",
         "subtotal": str(subtotal),
         "gst": str(gst),

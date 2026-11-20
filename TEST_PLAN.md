@@ -141,3 +141,25 @@ Final Phase 4 checks used Python 3.12 and local Chromium with temporary database
 Chromium exercised stage counts, search within the selected stage, filter clearing, keyboard skip navigation, the missing-page recovery link, inbox tabs, the exact source message link and the new finding controls. The guide ran through the employee forms at 1366 px and 390 px. Both runs verified the NZD 316.25 total, NZD 41.25 GST, employee approval, audit history, exit and repeat behaviour. The original queue before and after each run matched. The original V2 replay still uses a stable delivery ID across equal subjects and tied timestamps. The provider smoke case still tests held-reply recovery, mock findings, manual review, quotation and duplicate replay.
 
 Regression checks cover a restored quotation field value re-enabling approval, a rejection reason visible on the quote and the existing Save new version and Discard edits actions. The print test produced an A4 PDF and checked content and hidden screen controls. Desktop and mobile layouts were visually inspected in Chromium. A separate 320 px overflow check covered the dashboard, quotation, fictional composer, provider importer and missing-page screen. Local fixtures exercised both offline extraction modes. No paid model requests were made.
+
+## V5 distributor showcase
+
+The V5 branch started at the merge of PR #5, `e01557a`. The following checks ran with Python 3.12.14 and the local Chromium executable. Commands use the repository virtual environment.
+
+| Command | Observed result |
+| --- | --- |
+| `ruff check vee tests scripts evaluation` | Passed |
+| `mypy --check-untyped-defs vee evaluation` | Passed, 11 source files |
+| `python -m unittest discover -v` | 81 passed |
+| `python -m unittest tests.test_backup tests.test_provider_mail -q` | 24 passed, also included in discovery |
+| `python -m evaluation.run` | 68/68 cases, 84/84 line identities or abstentions, 31/31 labelled references in the top three, 12/12 quotation totals, zero false verifications and zero unsafe-ready outcomes |
+| `python -m evaluation.enquiries` | 16/16 cases in deterministic mode and the same 16/16 in offline mock mode |
+| `python -m scripts.browser_smoke` | Passed desktop and mobile guides, approval, preview and print, four additional showcase scenarios and the earlier intake, provider, recovery and employee UI journeys |
+| `python -m pip check` | No broken requirements |
+| `git diff --check origin/main` | Passed |
+
+The browser exercised the cylinder guide at 1366 and 390 px with keyboard entry and fresh workspaces. It checked NZD 316.25, a printable A4 PDF, return to the original queue and repeat startup. The other scenarios covered the 350 vs 250 bar conflict, four outstanding bearings, list pricing and a contract revision to NZD 474.38. Long-subject layout checks covered 320, 390, 760, 1024 and 1366 px. The primary enquiry and dashboard were also inspected in Chromium. The early smoke run caught an assertion using the retired duplicate stock-hold heading. The replacement assertion checks the visible employee decision and retains the blocked-draft assertion.
+
+Store and HTTP regressions cover all 45 references, restricted prices, unknown stock, zero stock, changed stock or price at partial approval, invalid partial edits, tampered backup quantities and refusal to serve an unapproved or superseded customer preview. A separate upgrade exercise created a draft and approved quotation using the code at `e01557a`, reopened them with V5, compared both complete records and histories, approved the old draft and verified a backup of the resulting database.
+
+All evaluation labels and records are synthetic. An observed first-time distributor user study remains outstanding.

@@ -12,7 +12,7 @@
   </form>{{ reject(item, csrf, 'reject_clarification', 'Reject clarification draft') }}
 {% elif item.status == 'awaiting_reply' %}
   <h2>Awaiting customer reply</h2><p>Reply to the approved clarification in the demo inbox to continue the investigation.</p>
-  <a class="button primary" href="{{ url_for('demo_email', reply_to=item.id) }}">{{ icon('mail',16) }} Compose demo reply</a>
+  {% if not (guide and guide.enquiry == item.id and guide.get('scenario', 'cylinder') in ['cylinder','conflict']) %}<a class="button primary" href="{{ url_for('demo_email', reply_to=item.id) }}">{{ icon('mail',16) }} Compose demo reply</a>{% endif %}
   {% if not item.thread[0].message_id %}<form action="{{ post }}" method="post">{{ identity(item, csrf) }}
     <label for="reply">Synthetic customer reply</label><textarea id="reply" name="body" rows="5" maxlength="8000" required>{{ item.sample_reply }}</textarea>
     <p class="hint">For a complete replacement, start with “Revised request:” and list every product and quantity.</p>
@@ -25,7 +25,7 @@
     <button name="action" value="verify_match" class="button primary">{{ icon('check',16) }}Verify match{{ 'es' if item.extraction.lines|length > 1 }}</button>
   </form>{{ reject(item, csrf, 'reject_match', 'Reject proposed match') }}
 {% elif item.status == 'verified' %}
-  <h2>Prepare quotation</h2><p>The selected products have been verified. Create a draft using the synthetic account prices and stock records.</p>
+  <h2>Prepare quotation</h2>{% if partial %}<p class="issues">Partial quotation · {{ partial.available }} available, {{ partial.outstanding }} outstanding.</p>{% endif %}<p>The selected products have been verified. Create a draft using the synthetic account prices and stock records.</p>
   <form action="{{ post }}" method="post">{{ identity(item, csrf) }}<button name="action" value="create_quote" class="button primary">{{ icon('document-check',16) }}Create draft quotation</button></form>
 {% elif item.status in ['draft_quote','rejected'] %}
   {% set quote = item.quotes|last %}
@@ -44,9 +44,14 @@
   {% if item.status == 'draft_quote' %}{{ reject(item, csrf, 'reject_quote', 'Reject this quotation') }}{% endif %}
 {% elif item.status == 'approved' %}
   <h2>Quotation approved</h2><p>Version {{ item.quotes[-1].version }} has employee approval. The quotation is available to print.</p>
-  <a class="button" href="#quotation">{{ icon('document-check',16) }}View approved quotation</a>
+  <a class="button primary" href="{{ url_for('customer_preview', id=item.id, version=item.quotes[-1].version) }}">Open customer preview</a>
+  {% if not guide and item.thread[0].message_id %}<a class="text-link" href="{{ url_for('demo_email', reply_to=item.id) }}">Record a revised customer order</a>{% endif %}
 {% elif item.status == 'commercial_hold' %}
   <h2>Commercial hold</h2><p>Review the outstanding stock or pricing issues in the technical investigation before a quotation can progress.</p><a href="#evidence" class="button">Review issues {{ icon('arrow-right',15) }}</a>
+  {% if partial %}<form method="post" action="{{ post }}">{{ identity(item, csrf) }}
+    <p>Only {{ partial.available }} units can be quoted. The remaining {{ partial.outstanding }} require supplier confirmation.</p>
+    <label class="confirm"><input name="sku" value="{{ partial.sku }}" type="checkbox" required>Confirm the technical match for {{ partial.sku }}</label>
+    <button class="button primary" name="action" value="verify_partial">Verify for a partial quotation</button></form>{% endif %}
 {% endif %}
 
 {% if item.status in ['needs_verification','verified','draft_quote','rejected','commercial_hold'] %}

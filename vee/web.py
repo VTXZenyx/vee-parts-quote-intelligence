@@ -23,6 +23,7 @@ from werkzeug.exceptions import Forbidden
 from werkzeug.wrappers import Response
 
 from vee import demo, findings, provider_mail, store
+from vee.catalogue import partial_offer
 from vee.extraction import live_enabled
 
 WORKSPACE_COOKIE = "vee_demo_workspace"
@@ -115,6 +116,9 @@ def create_app(database: Path | str | None = None) -> Flask:
 
     @app.post("/demo-workspace/start")
     def start_demo() -> Response:
+        scenario = request.form.get("scenario", "cylinder")
+        if scenario not in demo.SHOWCASE:
+            abort(400)
         workspace_folder.mkdir(mode=0o700, parents=True, exist_ok=True)
         identifier = uuid4().hex
         fresh = workspace_folder / f"{identifier}.sqlite3"
@@ -122,8 +126,8 @@ def create_app(database: Path | str | None = None) -> Flask:
         store.init(fresh)
         session.pop("guide", None)
         if request.form.get("guided") == "1":
-            session["guide"] = {"workspace": identifier, "enquiry": ""}
-        response = make_response(redirect(url_for("demo_email", scenario="cylinder"), code=303))
+            session["guide"] = {"workspace": identifier, "enquiry": "", "scenario": scenario}
+        response = make_response(redirect(url_for("demo_email", scenario=scenario), code=303))
         response.set_cookie(WORKSPACE_COOKIE, identifier, httponly=True, samesite="Strict")
         flash("Fresh demo workspace ready. Start by receiving an example email.", "success")
         return response
@@ -183,16 +187,16 @@ def create_app(database: Path | str | None = None) -> Flask:
                 status = 422
             else:
                 guide = active_guide()
-                cylinder = demo.SCENARIOS["cylinder"]
-                if guide and not guide["enquiry"] and not reply_to and all(
-                    values[field].strip() == getattr(cylinder, field)
+                prepared = demo.SCENARIOS[guide.get("scenario", "cylinder")] if guide else None
+                if guide and prepared and not guide["enquiry"] and not reply_to and all(
+                    values[field].strip() == getattr(prepared, field)
                     for field in ("customer", "sender", "subject", "body")
                 ):
                     session["guide"] = {**guide, "enquiry": key}
                 flash("Email already received. The conversation is unchanged." if repeated
                       else "Demo email received. Review the enquiry and its next step.", "success")
                 return redirect(url_for("enquiry", id=key), code=303)
-        elif item and item["status"] != "awaiting_reply":
+        elif item and item["status"] != "awaiting_reply" and not store.accepts_revision(item):
             flash("Approve a clarification in the enquiry before recording a customer reply.", "error")
             return redirect(url_for("enquiry", id=item["id"]), code=303)
 
@@ -263,7 +267,7 @@ def create_app(database: Path | str | None = None) -> Flask:
         if query:
             rows = [r for r in rows if any(query.casefold() in str(r[k]).casefold()
                     for k in ("id", "customer", "subject"))]
-        return render_template("inbox.html", rows=rows, all_rows=all_rows, q=query)
+        return render_template("inbox.html", rows=rows, all_rows=all_rows, q=query, showcase=demo.SHOWCASE)
 
     @app.get("/enquiries/<id>")
     def enquiry(id: str) -> str:
@@ -277,7 +281,19 @@ def create_app(database: Path | str | None = None) -> Flask:
             flash(str(error), "error")
             source, advisory = "", None
         return render_template("detail.html", item=item, advisory=advisory, source=source,
-                               inbound=findings.sources(item), live_enabled=live_enabled())
+                               partial=partial_offer(item["extraction"]), inbound=findings.sources(item), live_enabled=live_enabled())
+
+    @app.get("/enquiries/<id>/customer-preview")
+    def customer_preview(id: str) -> str | tuple[str, int]:
+        try:
+            item = store.detail(g.database, id)
+        except KeyError:
+            abort(404)
+        version = request.args.get("version")
+        if (item["status"] != "approved" or not item["quotes"]
+                or (version is not None and version != str(item["quotes"][-1]["version"]))):
+            return render_template("preview_unavailable.html", item=item), 409
+        return render_template("customer_preview.html", item=item, preview=True)
 
     @app.post("/enquiries/<id>/findings")
     @app.post("/enquiries/<id>/findings/<operation>")

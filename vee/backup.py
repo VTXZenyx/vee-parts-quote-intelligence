@@ -12,6 +12,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from vee import findings
+from vee.catalogue import partial_offer
 from vee.extraction import validate
 from vee.provider_mail import normalise
 from vee.store import ALLOWED, SCHEMA, V2_SCHEMA
@@ -162,7 +163,7 @@ def _verify_enquiry(raw: str, key: str, revision: int) -> dict:
         raise ValueError("Enquiry readiness disagrees with the saved requirements.")
     reviewed = state["status"] in {"verified", "draft_quote", "rejected", "approved"}
     if reviewed and (
-        not ready
+        (not ready and not partial_offer(analysis))
         or state["selected_skus"] != matched
         or state.get("selected_sku") != matched[0]
     ):
@@ -219,11 +220,21 @@ def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None
     version = 0
     quote_reference = ""
     approved = False
+    active_partial = None
     workflow_actions = []
     for _, action, detail in events:
         if action in {"extract_findings", "review_finding"}:
             continue
         workflow_actions.append(action)
+        if action == "verify_partial":
+            decision = "Employee verified the match and accepted a partial quotation: "
+            if not detail.startswith(decision):
+                raise ValueError("Missing partial quotation decision.")
+            active_partial = _fields(json.loads(detail[len(decision):]), sku=str, available=int, outstanding=int)
+            if min(active_partial["available"], active_partial["outstanding"]) < 1:
+                raise ValueError("Invalid partial quotation quantities.")
+        elif action in {"recheck_requirements", "refresh_evidence", "verify_match"}:
+            active_partial = None
         if action == "recheck_requirements":
             approved = False
         elif approved:
@@ -236,6 +247,15 @@ def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None
             if row is None or row[0] != version:
                 raise ValueError("A saved quotation version is missing.")
             quote_reference = _verify_quote(version, row[1])
+            quote = json.loads(row[1])
+            if quote.get("partial_offer") != active_partial:
+                raise ValueError("Partial quotation differs from the employee decision.")
+            if active_partial:
+                line = quote["lines"][0]
+                if (len(quote["lines"]) != 1 or line["sku"] != active_partial["sku"]
+                        or line.get("stock") != active_partial["available"] or line["quantity"] > line["stock"]
+                        or line.get("requested_quantity") != line["stock"] + active_partial["outstanding"]):
+                    raise ValueError("Partial quotation quantities differ from the accepted availability.")
             if detail != f"Saved {quote_reference} including GST.":
                 raise ValueError(
                     "The recorded save decision disagrees with the historical quote."
@@ -249,7 +269,7 @@ def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None
     if quotes.fetchone() is not None:
         raise ValueError("A quotation version has no corresponding save event.")
     final_actions = {
-        "verified": {"verify_match"},
+        "verified": {"verify_match", "verify_partial"},
         "draft_quote": {"create_quote", "edit_quote"},
         "approved": {"approve_quote"},
         "rejected": {"reject_quote"},
@@ -258,6 +278,8 @@ def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None
     status = state["status"]
     if status in final_actions and workflow_actions[-1] not in final_actions[status]:
         raise ValueError("The current state lacks its corresponding audit decision.")
+    if status in {"verified", "draft_quote", "approved", "rejected"} and active_partial != partial_offer(state["extraction"]):
+        raise ValueError("The current requirements disagree with the partial quotation decision.")
     if approved != (status == "approved") or (
         status in {"rejected", "draft_quote"} and not version
     ):

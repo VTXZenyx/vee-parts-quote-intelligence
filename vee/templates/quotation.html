@@ -3,7 +3,7 @@
 <section class="panel case-section quote" id="quotation" aria-labelledby="quote-title">
   <div class="quote-heading">
     <div>
-      <span class="print-only brand-print">VEE Parts &amp; Quote Intelligence</span>
+      {% if not preview %}<span class="print-only brand-print">VEE Industrial Supplies · Fictional distributor</span>{% endif %}
       <div class="section-heading">{{ icon('document-check',20) }}<h2 id="quote-title">Quotation</h2></div>
     </div>
     <div class="stack">
@@ -30,6 +30,7 @@
       {% for line in quote.lines %}<tr role="row">
         <th scope="row">
           <strong>{{ line.name }}</strong><small class="mono">{{ line.sku }}</small>
+          {% if line.requested_quantity is defined and line.quantity < line.requested_quantity %}<small class="issues">Partial quotation · {{ line.requested_quantity - line.quantity }} units outstanding</small>{% endif %}
           <small>{{ line.availability }}</small><small>{{ line.delivery or 'Delivery date unconfirmed' }}</small>
         </th>
         <td role="cell" class="requested-quantity"><span class="mobile-label" aria-hidden="true">Requested</span>{{ line.requested_quantity|default('Unrecorded') }}</td>
@@ -48,12 +49,12 @@
     </dl>
   </div>
   {% set issues = item.extraction.lines | map(attribute='issues') | sum(start=[]) %}
-  {% if issues %}<div class="issues"><h4>Outstanding issues</h4><ul>{% for issue in issues|unique %}<li>{{ issue }}</li>{% endfor %}</ul></div>{% endif %}
+  {% if issues and not preview %}<div class="issues"><h4>Outstanding issues</h4><ul>{% for issue in issues|unique %}<li>{{ issue }}</li>{% endfor %}</ul></div>{% endif %}
   <div class="quote-footer">
     <p class="quote-disclosure">Synthetic quotation · All amounts in {{ quote.currency }}</p>
     {% if item.status in ['draft_quote', 'rejected'] %}<a class="text-link no-print" href="#employee-action">Go to employee review {{ icon('arrow-right',15) }}</a>{% endif %}
   </div>
-  {% if item.quotes|length > 1 %}
+  {% if not preview and item.quotes|length > 1 %}
     <details class="versions no-print">
       <summary>Previous versions ({{ item.quotes|length - 1 }})</summary>
       {% for previous in item.quotes[:-1]|reverse %}

@@ -21,3 +21,5 @@ First close defects found in the employee workflow. Expand category rules, indep
 V3 delivers local Gmail and Graph fixtures, transactional duplicate handling, explicit retry of held replies and source-bound employee review. A configurable SDK adapter supports optional live text extraction. The next commercial milestone is an independently labelled distributor evaluation measuring review time, errors and model cost. Authorised mailbox and ERP pilots depend on identity, tenant isolation and data rights.
 
 V4 brings the guided demo, employee queues, source evidence and quote review into a consistent desktop and mobile interface. The next employee milestone is an observed synthetic trial with a distributor reviewer. Record completion time, errors and blocked cases before refining broader extraction coverage.
+
+V5 supplies five repeatable distributor scenarios and an approved customer preview. The next milestone is an observed owner and estimator walkthrough, followed by agreement on the evidence, boundaries and price of one limited pilot.
