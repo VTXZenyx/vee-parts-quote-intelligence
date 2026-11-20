@@ -11,7 +11,8 @@ from contextlib import closing
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
-from vee.store import ALLOWED, SCHEMA
+from vee.provider_mail import normalise
+from vee.store import ALLOWED, SCHEMA, V2_SCHEMA
 
 
 def _fields(value: object, **schema: type) -> dict:
@@ -237,7 +238,8 @@ def _verify_snapshot(database: sqlite3.Connection) -> None:
     objects = "SELECT type, name, sql FROM sqlite_schema WHERE name NOT GLOB 'sqlite_*' ORDER BY name"
     database.execute("PRAGMA trusted_schema=OFF")
     with closing(sqlite3.connect(":memory:")) as reference:
-        reference.executescript(SCHEMA)
+        version = database.execute("PRAGMA user_version").fetchone()[0]
+        reference.executescript(V2_SCHEMA if version < 3 else SCHEMA)
         if (
             database.execute(objects).fetchall()
             != reference.execute(objects).fetchall()
@@ -254,11 +256,33 @@ def _verify_snapshot(database: sqlite3.Connection) -> None:
         "SELECT 1 FROM quotes WHERE enquiry_id IS NULL LIMIT 1"
     ).fetchone():
         raise ValueError("An audit event or quote lacks its owning enquiry.")
+    sources: dict[tuple[str, str], tuple[str, dict]] = {}
     for key, revision, raw in database.execute(
         "SELECT id,revision,state FROM enquiries"
     ):
         state = _verify_enquiry(raw, key, revision)
         _verify_history(database, key, state)
+        for message in state["thread"]:
+            if "provider" in message:
+                identity = (message["provider"], message["mid"])
+                if identity in sources:
+                    raise ValueError("Duplicate provider identity in source history.")
+                sources[identity] = (key, message)
+    if version >= 3:
+        for provider, mid, thread, internet, raw, saved, key in database.execute(
+            "SELECT provider,mid,thread,internet,raw,normalised,enquiry_id FROM provider_mail"
+        ):
+            source = normalise(provider, json.loads(raw))
+            if (source != json.loads(saved)
+                    or (mid, thread, internet) != (source["mid"], source["thread"], source["internet"])):
+                raise ValueError("Provider receipt disagrees with its original envelope.")
+            if key:
+                owner, message = sources.pop((provider, mid), (None, {}))
+                if owner != key or any(message.get(k) != source[k] for k in
+                                       ("body", "at", "internet", "sender", "recipient", "subject", "attachments")):
+                    raise ValueError("Provider receipt disagrees with its enquiry source history.")
+    if sources:
+        raise ValueError("A message in source history lacks its provider receipt.")
 
 
 def _stop_if_busy(status: int, remaining: int, total: int) -> None:

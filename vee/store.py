@@ -42,7 +42,7 @@ ALLOWED = {
     "commercial_hold": {"refresh_evidence"},
 }
 
-SCHEMA = """
+V2_SCHEMA = """
 CREATE TABLE IF NOT EXISTS enquiries (
     id TEXT PRIMARY KEY,
     revision INTEGER NOT NULL,
@@ -62,6 +62,24 @@ CREATE TABLE IF NOT EXISTS quotes (
     version INTEGER NOT NULL,
     snapshot TEXT NOT NULL,
     PRIMARY KEY (enquiry_id, version)
+);
+"""
+
+
+SCHEMA = V2_SCHEMA + """
+CREATE TABLE IF NOT EXISTS provider_mail (
+    id INTEGER PRIMARY KEY,
+    provider TEXT NOT NULL,
+    mid TEXT NOT NULL,
+    thread TEXT NOT NULL,
+    internet TEXT NOT NULL,
+    raw TEXT NOT NULL,
+    normalised TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('held','accepted')),
+    reason TEXT NOT NULL,
+    enquiry_id TEXT REFERENCES enquiries(id),
+    UNIQUE(provider, mid),
+    CHECK ((status='accepted') = (enquiry_id IS NOT NULL))
 );
 """
 
@@ -191,6 +209,15 @@ def _investigate(item):
     if _unresolved_subject(item, analysis):
         _require_review(analysis, "The subject contains requirements not resolved in the active request.",
                         "Please confirm the subject requirements in the complete request and refer special service conditions to a technical reviewer.")
+    for entry in item["thread"]:
+        if not entry.get("provider"):
+            continue
+        if entry.get("attachments"):
+            _require_review(analysis, "Only attachment metadata is available.",
+                            "Please confirm all attachment requirements in the message text.")
+        if entry["subject"] != item["subject"] and _unresolved_subject({**item, "subject": entry["subject"]}, analysis):
+            _require_review(analysis, "A changed email subject contains unresolved requirements.",
+                            "Please confirm the requirements from the changed subject.")
     if basis:
         omitted = _omitted_attributes(messages[:basis], analysis, item["customer"])
         if omitted:
@@ -221,7 +248,8 @@ def init(path: str | Path) -> None:
 
         if db.execute("PRAGMA user_version").fetchone()[0] < 2:
             _recheck_legacy_decisions(db)
-            db.execute("PRAGMA user_version=2")
+        if db.execute("PRAGMA user_version").fetchone()[0] < 3:
+            db.execute("PRAGMA user_version=3")
 
 
 def _recheck_legacy_decisions(db):
@@ -260,7 +288,10 @@ def _insert_enquiry(db, key, customer, subject, body, attachments, reply, receiv
         item["thread"][0].update(envelope)
     _investigate(item)
     db.execute("INSERT INTO enquiries VALUES (?,?,?)", (key, 1, json.dumps(item)))
-    _audit(db, item, "Mock mailbox", "received", "Synthetic customer enquiry recorded.", received)
+    receipt = "Synthetic customer enquiry recorded."
+    if envelope and envelope.get("provider"):
+        receipt = f"Received {envelope['provider']} message {envelope['mid']} in the simulated inbox."
+    _audit(db, item, "Mock mailbox", "received", receipt, received)
 
 
 DEMO_RECIPIENT = "quotes@vee.example"
@@ -331,10 +362,14 @@ def _receive(path, message_id, customer, subject, body, *, envelope=None, enquir
             _apply(db, item, "simulate_reply", {"revision": revision, "body": body}, envelope)
             return item["id"], False
 
-        sequence = db.execute("SELECT coalesce(max(cast(substr(id,5) AS integer)),1042)+1 FROM enquiries").fetchone()[0]
-        key = f"ENQ-{sequence}"
+        key = _next_key(db)
         _insert_enquiry(db, key, customer, subject, body, [], "", _now(), message_id, envelope)
         return key, False
+
+
+def _next_key(db):
+    sequence = db.execute("SELECT coalesce(max(cast(substr(id,5) AS integer)),1042)+1 FROM enquiries").fetchone()[0]
+    return f"ENQ-{sequence}"
 
 
 def receive(path: str | Path, message_id: str, customer: str, subject: str, body: str) -> str:
@@ -557,12 +592,16 @@ def _apply(db, item, action, fields, envelope=None):
         raise ValueError("Record this reply in the Demo Email Inbox.")
     at = _now()
     message = _transition(db, item, action, fields, at, envelope)
+    actor = "Mock mailbox" if action == "simulate_reply" else "Demo employee"
+    _save_revision(db, item, actor, action, message, at)
+    return _result(db, item)
+
+
+def _save_revision(db, item, actor, action, message, at):
     item["revision"] += 1
     db.execute("UPDATE enquiries SET revision=?,state=? WHERE id=?",
                (item["revision"], json.dumps(item), item["id"]))
-    actor = "Mock mailbox" if action == "simulate_reply" else "Demo employee"
     _audit(db, item, actor, action, message, at)
-    return _result(db, item)
 
 
 def act(path: str | Path, id: str, action: str, fields: dict) -> dict:

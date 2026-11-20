@@ -87,6 +87,11 @@ def create_app(database: Path | str | None = None) -> Flask:
             if identifier.version == 4 and selected == identifier.hex and candidate.is_file():
                 g.workspace = identifier.hex
                 g.database = candidate
+                # A saved V2 demo cookie may reopen an older workspace after upgrading.
+                with store._transaction(candidate) as db:
+                    version = db.execute("PRAGMA user_version").fetchone()[0]
+                if version < 3:
+                    store.init(candidate)
 
     @app.before_request
     def protect_mutations() -> None:
