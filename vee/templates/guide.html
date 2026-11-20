@@ -27,6 +27,7 @@
     {% if scenario == 'contract' and item.quotes|length == 1 %}<a class="button" href="{{ url_for('demo_email', reply_to=item.id, reply_example='revision') }}">Receive revised order for three</a>{% endif %}
     <a class="text-link" href="#activity">Inspect audit history</a>
     {% endif %}
+    {% if guide_page not in ['receive','reply','awaiting_reply'] %}<a class="text-link" href="#employee-action">Go to employee action</a>{% endif %}
     <form method="post" action="{{ url_for('exit_guide') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button compact">Exit guide</button></form>
   </div>
 </section>

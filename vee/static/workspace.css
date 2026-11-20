@@ -530,3 +530,14 @@ main [id]:target { scroll-margin-top: 14px; }
 .showcase-start { display: grid; gap: 5px; }
 .showcase-start label { font-size: .8rem; font-weight: 650; }
 .showcase-start select { max-width: 100%; min-width: 0; padding: 7px; font: inherit; }
+.document { max-width: 56rem; margin: 24px auto; }
+.document-sheet { border: 1px solid var(--line); background: white; padding: clamp(15px,4vw,42px); }
+.document-head { border-bottom: 3px solid var(--green); padding-bottom: 20px; display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
+.document-label { font-size: .8rem; color: var(--green); }
+.document-head h1 { margin: 8px 0; }
+.document .quote { border: 0; box-shadow: none; padding: 20px 0; }
+.document-terms { padding-top: 12px; border-top: 1px solid var(--line); font-size: .85rem; }
+@media print {
+  .document { margin: 0; max-width: none; }
+  .document-sheet { padding: 0; border: 0; }
+}

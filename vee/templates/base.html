@@ -26,13 +26,19 @@
 </header>
 <main class="shell" id="main" tabindex="-1">
 {% with messages = get_flashed_messages(with_categories=true) %}
-  {% for category, message in messages %}<div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ icon('info') }} {{ message }}</div>{% endfor %}
+  {% for category, message in messages %}<div class="flash {{ category }}{% if guide and category == 'success' %} sr{% endif %}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ icon('info') }} {{ message }}</div>{% endfor %}
 {% endwith %}
-{% if demo_workspace %}<div class="workspace-switch no-print">
-  <span>Working in a separate demo workspace.</span>
+{% if not guide %}{% if demo_workspace %}<div class="workspace-switch no-print">
+  <span>Isolated demonstration workspace</span>
   <form method="post" action="{{ url_for('original_workspace') }}"><input name="csrf" type="hidden" value="{{ csrf }}"><button class="button compact" type="submit">Return to original workspace</button></form>
 </div>{% endif %}
+{% endif %}
 {% block content %}{% endblock %}
+{% if guide %}{% if demo_workspace %}<div class="workspace-switch no-print">
+  <span>Isolated demonstration workspace</span>
+  <form method="post" action="{{ url_for('original_workspace') }}"><input name="csrf" type="hidden" value="{{ csrf }}"><button class="button compact" type="submit">Return to original workspace</button></form>
+</div>{% endif %}
+{% endif %}
 </main>
 <footer class="shell footer"><span>VEE Parts &amp; Quote Intelligence</span><span>{{ icon('flask', 14) }} Synthetic data · Local demonstration</span></footer>
 </body>

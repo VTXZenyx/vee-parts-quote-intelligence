@@ -34,7 +34,7 @@
           {% for candidate in line.candidates if candidate.sku == line.reference %}{% for fact in candidate.evidence if fact.startswith('Conflict') %}<li>{{ fact }}</li>{% endfor %}{% endfor %}</ul></div>{% endif %}
       {% endfor %}
       {% if item.basis_inbound %}<p><strong>Current customer revision</strong> · {{ inbound[item.basis_inbound].body }}</p>{% endif %}
-      <small class="subtle">Local catalogue checks · Employee verification required</small>
+      <small class="subtle">Local catalogue checks{% if advisory %} · {{ {'mock':'Mock extraction','deterministic':'Deterministic extraction','openai':'Optional AI extraction'}[advisory.method] }}{% endif %}</small>
     </section>
     {% if item.quotes %}{% include 'quotation.html' %}{% endif %}
     <details class="panel record-details" {% if request.args.get('source') %}open{% endif %}><summary>Message analysis and processing options</summary>

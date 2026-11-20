@@ -283,6 +283,18 @@ def create_app(database: Path | str | None = None) -> Flask:
         return render_template("detail.html", item=item, advisory=advisory, source=source,
                                partial=partial_offer(item["extraction"]), inbound=findings.sources(item), live_enabled=live_enabled())
 
+    @app.get("/enquiries/<id>/customer-preview")
+    def customer_preview(id: str) -> str | tuple[str, int]:
+        try:
+            item = store.detail(g.database, id)
+        except KeyError:
+            abort(404)
+        version = request.args.get("version")
+        if (item["status"] != "approved" or not item["quotes"]
+                or (version is not None and version != str(item["quotes"][-1]["version"]))):
+            return render_template("preview_unavailable.html", item=item), 409
+        return render_template("customer_preview.html", item=item, preview=True)
+
     @app.post("/enquiries/<id>/findings")
     @app.post("/enquiries/<id>/findings/<operation>")
     def review_findings(id: str, operation: str = "process") -> Response:
