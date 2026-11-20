@@ -331,6 +331,10 @@ def _delivery(db, message_id: str):
     return saved, message
 
 
+def accepts_revision(item: dict) -> bool:
+    return item["status"] == "approved" and bool(item["thread"][0].get("message_id"))
+
+
 def _receive(path, message_id, customer, subject, body, *, envelope=None, enquiry_id=None, revision=None):
     message_id = _message_id(message_id)
     if customer not in CUSTOMERS:
@@ -362,6 +366,19 @@ def _receive(path, message_id, customer, subject, body, *, envelope=None, enquir
                 raise ValueError("Reply addresses and account must match the selected conversation.")
             if subject != expected["subject"]:
                 raise ValueError("The reply subject must match the selected conversation.")
+            if accepts_revision(item):
+                if str(revision) != str(item["revision"]):
+                    raise ValueError("This enquiry has changed. Review the latest revision and retry.")
+                if not body.casefold().startswith(REVISED_HEADER.casefold()) or not body[len(REVISED_HEADER):].strip():
+                    raise ValueError("Start with 'Revised request:' and supply the complete replacement order.")
+                at = _now()
+                _record_message(item, "inbound", body, at)
+                item["thread"][-1].update(envelope)
+                item.update(selected_skus=[], selected_sku=None, sample_reply="")
+                _investigate(item)
+                _save_revision(db, item, "Mock mailbox", "recheck_requirements",
+                               "Received a complete revised order. Earlier approval is historical.", at)
+                return item["id"], False
             _apply(db, item, "simulate_reply", {"revision": revision, "body": body}, envelope)
             return item["id"], False
 

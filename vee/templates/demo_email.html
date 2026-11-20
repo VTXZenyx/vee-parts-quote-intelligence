@@ -7,22 +7,25 @@
   <div><h1>Demo Email Inbox</h1><p>Practice receiving customer requests and replies in a synthetic mailbox.</p></div>
   {% if not guide %}<form method="post" action="{{ url_for('start_demo') }}"><input name="csrf" type="hidden" value="{{ csrf }}"><button class="button" type="submit">Start fresh demo</button></form>{% endif %}
 </header>
-<nav class="section-nav" aria-label="Demo email tools">
+{% set showing = guide and view == 'compose' and ((not guide.enquiry and not item and request.args.get('scenario') == guide.get('scenario','cylinder')) or (item and guide.enquiry == item.id)) %}
+{% if not showing %}<nav class="section-nav" aria-label="Demo email tools">
   {% for key, label in [('compose','Fictional email'), ('providers','Provider fixtures'), ('history','Message history')] %}
   <a href="{{ url_for('demo_email', view=key if key != 'compose' else none) }}" {% if view == key %}aria-current="page"{% endif %}>{{ label }}</a>
   {% endfor %}
-</nav>
+</nav>{% endif %}
 {% if view == 'providers' %}
   {% include 'provider_mail.html' %}
 {% elif view == 'compose' %}
-{% if guide and ((not guide.enquiry and not item) or (item and guide.enquiry == item.id)) %}
+{% if showing %}
   {% set guide_page = 'reply' if item else 'receive' %}
   {% include 'guide.html' %}
 {% endif %}
 <div class="mail-layout">
   <section class="panel case-section mail-composer" id="compose" aria-labelledby="composer-title">
     <h2 id="composer-title">{{ 'Compose a demo reply' if item else 'Create test email' }}</h2>
-    {% if item %}
+    {% if showing %}
+      <p><strong>{{ values.customer }}</strong> · {{ values.sender }}</p>
+    {% elif item %}
       <p>Replying to <a href="{{ url_for('enquiry', id=item.id) }}">{{ item.id }} · {{ item.subject }}</a>. The sender, recipient and subject are tied to this conversation.</p>
       <details class="mail-examples"><summary>Try a reply example</summary><ul>
         {% for key, example in reply_examples.items() %}<li><a href="{{ url_for('demo_email', reply_to=item.id, reply_example=key) }}">{{ example[0] }}</a></li>{% endfor %}
@@ -38,6 +41,11 @@
     {% endif %}
     <form method="post" action="{{ url_for('demo_email') }}" class="mail-form">
       <input name="csrf" type="hidden" value="{{ csrf }}">
+      {% if showing %}
+        {% for key in ['customer','sender','recipient','subject','message_id'] %}<input type="hidden" name="{{ key }}" value="{{ values[key] }}">{% endfor %}
+        {% if item %}<input type="hidden" name="reply_to" value="{{ item.id }}"><input type="hidden" name="revision" value="{{ values.revision }}">{% endif %}
+        <strong>{{ values.subject }}</strong>
+      {% else %}
       {% if item %}<input name="reply_to" type="hidden" value="{{ item.id }}"><input name="revision" type="hidden" value="{{ values.revision }}">
       <input name="customer" type="hidden" value="{{ values.customer }}">
       {% else %}<label for="mail-account">Synthetic account</label>
@@ -50,20 +58,21 @@
       </div>
       <p class="hint" id="address-hint">Use fictional addresses ending in <code>.example</code>.</p>
       <label for="mail-subject">Subject</label><input id="mail-subject" name="subject" required maxlength="{{ 204 if item else 200 }}" value="{{ values.subject }}" {{ 'readonly' if item }}>
+      {% endif %}
       <label for="mail-body">Message</label><textarea id="mail-body" name="body" rows="6" maxlength="8000" required>{{ values.body }}</textarea>
-      <details class="mail-id"><summary>Message identifier</summary><p>VEE uses this identifier to recognise duplicate deliveries.</p>
+      {% if not showing %}<details class="mail-id"><summary>Message identifier</summary><p>VEE uses this identifier to recognise duplicate deliveries.</p>
         <label for="message-id">Message ID</label><input class="mono" id="message-id" name="message_id" value="{{ values.message_id }}" readonly>
-      </details>
+      </details>{% endif %}
       <button class="button primary" type="submit">{{ icon('mail',16) }} {{ 'Receive demo reply' if item else 'Receive test email' }}</button>
     </form>
   </section>
-  <div>
+  {% if not showing %}<div>
     <section class="panel case-section mailbox-section" aria-labelledby="waiting-title">
       <h2 id="waiting-title">Waiting for a customer reply</h2>
       {% if waiting %}<ul class="mail-waiting">{% for row in waiting %}<li><a href="{{ url_for('demo_email', reply_to=row.id) }}">{{ row.subject }}</a><small>{{ row.customer }} · {{ row.id }}</small></li>{% endfor %}</ul>
       {% else %}<p class="subtle">After you approve a clarification in an enquiry, its reply link appears here.</p>{% endif %}
     </section>
-  </div>
+  </div>{% endif %}
 </div>
 {% else %}
     <section class="panel case-section mailbox-section" aria-labelledby="deliveries-title">

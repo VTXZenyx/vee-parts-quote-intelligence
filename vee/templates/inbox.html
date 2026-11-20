@@ -25,12 +25,13 @@
   <div class="stack">
     <a class="button" href="{{ url_for('demo_email') }}#compose">{{ icon('mail',16) }} Create test email</a>
     {% if guide %}
-    <a class="button primary" href="{{ url_for('enquiry', id=guide.enquiry) if guide.enquiry else url_for('demo_email', scenario='cylinder') }}">Continue guided demo {{ icon('arrow-right',15) }}</a>
-    {% else %}
-    <form method="post" action="{{ url_for('start_demo') }}"><input name="csrf" type="hidden" value="{{ csrf }}">
-      <button class="button primary" name="guided" value="1">Start guided demo {{ icon('arrow-right',15) }}</button>
-    </form>
+    <a class="button primary" href="{{ url_for('enquiry', id=guide.enquiry) if guide.enquiry else url_for('demo_email', scenario=guide.get('scenario','cylinder')) }}">Continue guided demo {{ icon('arrow-right',15) }}</a>
     {% endif %}
+    <form method="post" class="showcase-start" action="{{ url_for('start_demo') }}"><input name="csrf" type="hidden" value="{{ csrf }}">
+      <label for="showcase">Demonstration scenario</label>
+      <select name="scenario" id="showcase">{% for key,label in showcase.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>
+      <button class="button primary" name="guided" value="1">Start product demonstration {{ icon('arrow-right',15) }}</button>
+    </form>
   </div>
 </header>
 <details class="panel case-section"><summary>Distributor profile and warehouse policies</summary>

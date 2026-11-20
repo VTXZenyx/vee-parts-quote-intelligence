@@ -527,3 +527,6 @@ main [id]:target { scroll-margin-top: 14px; }
   .case-content > #quotation { order: -2; }
   .case-grid > .action-column { order: -1; }
 }
+.showcase-start { display: grid; gap: 5px; }
+.showcase-start label { font-size: .8rem; font-weight: 650; }
+.showcase-start select { max-width: 100%; min-width: 0; padding: 7px; font: inherit; }
