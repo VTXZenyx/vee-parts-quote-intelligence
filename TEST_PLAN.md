@@ -120,3 +120,24 @@ Final local verification used Python 3.12 and Chromium with fresh temporary SQLi
 The provider tests cover concurrent delivery, equal subjects, changed subjects, forwards, unknown or conflicting identifiers, new requests inside existing conversations, database failure rollback, late parents, successive replies and invalidation after approval. A V2 snapshot was restored, upgraded, imported into and copied again. Replaying the delivery on the recovered database preserved the enquiry. Chromium recovered an early Gmail reply while an independent Outlook request shared its subject, recorded a mock extraction and employee review, and approved the NZD 316.25 quote. The desktop provider inbox and narrow-screen evidence view were also inspected visually.
 
 Regressions caught while implementing V3 included counting a subject as a second product, linking a third email by receipt order after recovering its parent, accepting a partial numeric source as evidence for a pressure, and restoring a receipt or finding with the wrong source. The SDK tests use the installed client and an in-memory HTTP transport, including a valid structured response, rate limiting and timeout. No live inference, provider credentials, mail delivery or real business records were used for verification. The 16 message cases are reused across local modes. Neither that comparison nor the 61 catalogue fixtures measure industrial field accuracy.
+
+## V4 professional employee workspace
+
+The V3 baseline was `0df480c`, the merge of PR #4 into main. Its local discovery run passed 76 tests and the original Chromium smoke journey. The GitHub Actions API returned Forbidden for the baseline commit.
+
+Final Phase 4 checks used Python 3.12 and local Chromium with temporary databases. Run these commands from the repository using executables in `.venv/bin`.
+
+| Command | Observed result |
+| --- | --- |
+| `ruff check vee tests scripts evaluation` | Passed |
+| `mypy --check-untyped-defs vee evaluation` | Passed across 11 source files |
+| `python -m unittest discover -v` | 76 passed |
+| `python -m unittest tests.test_backup tests.test_provider_mail -q` | 24 passed, included in the 76 |
+| `python -m evaluation.run` | 61/61 cases, 9/9 quote totals, zero false verified SKUs and zero unsafe-ready outcomes |
+| `python -m evaluation.enquiries` | 16/16 deterministic and 16/16 mock cases |
+| `python -m scripts.browser_smoke` | Passed all original journeys and the added dashboard and guided demo checks |
+| `python -m pip check` and `git diff --check origin/main` | Passed |
+
+Chromium exercised stage counts, search within the selected stage, filter clearing, keyboard skip navigation, the missing-page recovery link, inbox tabs, the exact source message link and the new finding controls. The guide ran through the employee forms at 1366 px and 390 px. Both runs verified the NZD 316.25 total, NZD 41.25 GST, employee approval, audit history, exit and repeat behaviour. The original queue before and after each run matched. The original V2 replay still uses a stable delivery ID across equal subjects and tied timestamps. The provider smoke case still tests held-reply recovery, mock findings, manual review, quotation and duplicate replay.
+
+Regression checks cover a restored quotation field value re-enabling approval, a rejection reason visible on the quote and the existing Save new version and Discard edits actions. The print test produced an A4 PDF and checked content and hidden screen controls. Desktop and mobile layouts were visually inspected in Chromium. A separate 320 px overflow check covered the dashboard, quotation, fictional composer, provider importer and missing-page screen. Local fixtures exercised both offline extraction modes. No paid model requests were made.

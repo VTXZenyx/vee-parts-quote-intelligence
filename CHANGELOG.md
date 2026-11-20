@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-20 · Professional employee workspace
+
+- Added compact queue filters, stage counts, a keyboard skip link and active navigation.
+- Added a guided Harbour Packaging demo that runs in an isolated workspace and follows actual employee decisions.
+- Separated fictional email, provider fixtures and delivery history. Added source links, findings provenance, visible uncertainty and separate controls for processing and review.
+- Split requested and quoted quantities, clarified the total and GST, and improved narrow-screen and A4 quotation layout. Rejected drafts display the recorded reason.
+- Fixed the disabled approval button after reverting an edit by hand. Added recovery links for missing enquiry and delivery pages.
+
 ## 2026-11-20 · Intelligent enquiry processing
 
 Added offline Gmail and Outlook receipts, source-bound findings, optional model extraction and auditable employee corrections. Recovered replies follow accepted conversation order even when their receipt numbers differ. Backup checks validate provider ownership and saved findings. The employee can recover an early reply, inspect its evidence, verify two cylinders and approve the NZD 316.25 sample quotation.
