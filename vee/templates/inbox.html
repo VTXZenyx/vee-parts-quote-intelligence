@@ -24,7 +24,13 @@
   </div>
   <div class="stack">
     <a class="button" href="{{ url_for('demo_email') }}#compose">{{ icon('mail',16) }} Create test email</a>
-    <a class="button primary" href="{{ url_for('demo_email', scenario='cylinder') }}">Try sample workflow {{ icon('arrow-right',15) }}</a>
+    {% if guide %}
+    <a class="button primary" href="{{ url_for('enquiry', id=guide.enquiry) if guide.enquiry else url_for('demo_email', scenario='cylinder') }}">Continue guided demo {{ icon('arrow-right',15) }}</a>
+    {% else %}
+    <form method="post" action="{{ url_for('start_demo') }}"><input name="csrf" type="hidden" value="{{ csrf }}">
+      <button class="button primary" name="guided" value="1">Start guided demo {{ icon('arrow-right',15) }}</button>
+    </form>
+    {% endif %}
   </div>
 </header>
 

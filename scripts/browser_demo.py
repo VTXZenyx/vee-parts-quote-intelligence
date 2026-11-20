@@ -8,7 +8,9 @@ from playwright.sync_api import Page, expect
 def exercise_demo(page: Page, address: str) -> None:
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(address)
-    page.get_by_role("link", name="Try sample workflow").press("Enter")
+    page.get_by_role("link", name="Create test email").press("Enter")
+    page.get_by_label("Example email").select_option("cylinder")
+    page.get_by_role("button", name="Load example").click()
     expect(page.get_by_role("heading", name="Demo Email Inbox")).to_be_visible()
     expect(page.get_by_label("From")).to_have_value("maintenance@harbour.example")
     page.get_by_role("button", name="Start fresh demo").click()
@@ -62,6 +64,7 @@ def exercise_demo(page: Page, address: str) -> None:
     rows_before = enquiry_rows.all_text_contents()
 
     page.get_by_role("link", name="Demo Email Inbox").click()
+    page.get_by_role("link", name="Message history", exact=True).click()
     history = page.locator(".mail-history")
     messages = history.locator("li")
     expect(messages).to_have_count(4)
@@ -70,8 +73,8 @@ def exercise_demo(page: Page, address: str) -> None:
     replay_form = page.locator(f'form[action="/demo-email/{message_id}/replay"]')
     original = messages.filter(has=replay_form)
     expect(original).to_have_count(1)
-    expect(original.locator("summary")).to_contain_text(f"Received · {enquiry_id}")
-    original.locator("summary").click()
+    expect(original.locator(":scope > details > summary")).to_contain_text(f"Received · {enquiry_id}")
+    original.locator(":scope > details > summary").click()
     original.get_by_role("button", name="Replay delivery", exact=True).click()
     expect(page.get_by_role("status")).to_contain_text(f"Duplicate delivery recognised for {enquiry_id}.")
     assert messages.all_text_contents() == messages_before

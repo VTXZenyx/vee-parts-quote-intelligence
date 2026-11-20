@@ -117,7 +117,7 @@ class DemoMail(unittest.TestCase):
             self.assertEqual(response.status_code, 422)
         response = self.client.post("/demo-email", data={**token, **delivery})
         self.assertEqual(response.status_code, 303)
-        self.assertIn(delivery["message_id"].encode(), self.client.get("/demo-email").data)
+        self.assertIn(delivery["message_id"].encode(), self.client.get("/demo-email?view=history").data)
 
     def test_fresh_workspace_preserves_original_and_survives_server_restart(self):
         key, _ = self.deliver(self.envelope(subject="Original-only example"))

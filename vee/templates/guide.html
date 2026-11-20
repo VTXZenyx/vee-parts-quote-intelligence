@@ -1,0 +1,32 @@
+{% set guide_content = {
+  'receive': ('Receive the Harbour Packaging request', 'Read the prepared email and select Receive test email. Look for the missing cylinder dimensions in the enquiry.'),
+  'needs_clarification': ('Review missing specifications', 'Read the outstanding issues. Review the drafted questions, then approve the clarification for the demo customer.'),
+  'awaiting_reply': ('Receive the customer’s measurements', 'The sample reply supplies the bore, stroke, port and mounting details requested in the clarification.'),
+  'reply': ('Read the customer’s reply', 'Check the supplied measurements, then select Receive demo reply.'),
+  'needs_verification': ('Compare and verify the match', 'Check the customer’s measurements against the suggested cylinder. Confirm the part in Employee review when the evidence agrees.'),
+  'verified': ('Prepare the quotation', 'Create the draft using the verified cylinder and the synthetic Harbour Packaging account price.'),
+  'draft_quote': ('Check the draft and decide', 'Review two cylinders, the unit price and GST. Approve the displayed version when you are satisfied.'),
+  'approved': ('Guided demo complete', 'The enquiry history shows how the customer request, technical decision and quotation approval were recorded.')
+} %}
+<section class="guide no-print" id="guide" aria-labelledby="guide-title">
+  <div>
+    <p class="guide-label">{{ icon('workflow',16) }} Guided demo</p>
+    {% set instruction = guide_content.get(guide_page) %}
+    <h2 id="guide-title">{{ instruction[0] if instruction else 'Review the current enquiry' }}</h2>
+    {% if instruction %}<p>{{ instruction[1] }}</p>{% endif %}
+  </div>
+  <div class="stack">
+    {% if guide_page == 'awaiting_reply' %}
+    <a class="button primary" href="{{ url_for('demo_email', reply_to=item.id, reply_example='cylinder') }}">Load the cylinder reply</a>
+    {% elif guide_page == 'approved' %}
+    <a class="button" href="#conversation">Inspect message history</a>
+    <a class="button primary" href="#activity">Inspect audit history</a>
+    {% elif guide_page == 'receive' and request.args.get('scenario') != 'cylinder' %}
+    <a class="button" href="{{ url_for('demo_email', scenario='cylinder') }}">Load the cylinder request</a>
+    {% endif %}
+    <form method="post" action="{{ url_for('exit_guide') }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="button" type="submit">Exit guide</button>
+    </form>
+  </div>
+</section>

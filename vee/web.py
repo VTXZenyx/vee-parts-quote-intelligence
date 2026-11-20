@@ -50,9 +50,13 @@ def create_app(database: Path | str | None = None) -> Flask:
             return hmac.digest(token.encode(), g.workspace.encode(), "sha256").hex()
         return token
 
+    def active_guide() -> dict | None:
+        guide = session.get("guide")
+        return guide if guide and guide["workspace"] == g.workspace else None
+
     @app.context_processor
-    def form_context() -> dict[str, str]:
-        return {"csrf": csrf_token(), "demo_workspace": g.workspace}
+    def form_context() -> dict:
+        return {"csrf": csrf_token(), "demo_workspace": g.workspace, "guide": active_guide()}
 
     @app.after_request
     def response_headers(response: Response) -> Response:
@@ -112,13 +116,24 @@ def create_app(database: Path | str | None = None) -> Flask:
         fresh = workspace_folder / f"{identifier}.sqlite3"
         fresh.touch(mode=0o600, exist_ok=False)
         store.init(fresh)
+        session.pop("guide", None)
+        if request.form.get("guided") == "1":
+            session["guide"] = {"workspace": identifier, "enquiry": ""}
         response = make_response(redirect(url_for("demo_email", scenario="cylinder"), code=303))
         response.set_cookie(WORKSPACE_COOKIE, identifier, httponly=True, samesite="Strict")
         flash("Fresh demo workspace ready. Start by receiving an example email.", "success")
         return response
 
+    @app.post("/demo-workspace/exit-guide")
+    def exit_guide() -> Response:
+        guide = active_guide()
+        session.pop("guide", None)
+        address = url_for("enquiry", id=guide["enquiry"]) if guide and guide["enquiry"] else url_for("demo_email")
+        return redirect(address, code=303)
+
     @app.post("/demo-workspace/original")
     def original_workspace() -> Response:
+        session.pop("guide", None)
         response = make_response(redirect(url_for("inbox"), code=303))
         response.delete_cookie(WORKSPACE_COOKIE)
         flash("You’re back in the original workspace.", "success")
@@ -134,6 +149,9 @@ def create_app(database: Path | str | None = None) -> Flask:
             except KeyError:
                 abort(404)
 
+        view = request.args.get("view")
+        if request.method != "GET" or item or view not in {"providers", "history"}:
+            view = "compose"
         values = {
             "sender": "", "recipient": store.DEMO_RECIPIENT, "subject": "", "body": "", "customer": "",
             "message_id": str(uuid4()), "revision": "",
@@ -160,6 +178,13 @@ def create_app(database: Path | str | None = None) -> Flask:
                 flash(str(error), "error")
                 status = 422
             else:
+                guide = active_guide()
+                cylinder = demo.SCENARIOS["cylinder"]
+                if guide and not guide["enquiry"] and not reply_to and all(
+                    values[field].strip() == getattr(cylinder, field)
+                    for field in ("customer", "sender", "subject", "body")
+                ):
+                    session["guide"] = {**guide, "enquiry": key}
                 flash("Email already received. The conversation is unchanged." if repeated
                       else "Demo email received. Review the enquiry and its next step.", "success")
                 return redirect(url_for("enquiry", id=key), code=303)
@@ -173,9 +198,10 @@ def create_app(database: Path | str | None = None) -> Flask:
             key=lambda entry: entry[1]["at"], reverse=True,
         )
         return render_template(
-            "demo_email.html", values=values, item=item, scenarios=demo.SCENARIOS, reply_examples=demo.REPLY_EXAMPLES,
+            "demo_email.html", values=values, item=item, view=view, scenarios=demo.SCENARIOS, reply_examples=demo.REPLY_EXAMPLES,
             deliveries=deliveries, waiting=[row for row in rows if row["status"] == "awaiting_reply"],
-            accounts=store.CUSTOMERS, fixtures=provider_mail.FIXTURES, receipts=provider_mail.deliveries(g.database),
+            accounts=store.CUSTOMERS, fixtures=provider_mail.FIXTURES,
+            receipts=provider_mail.deliveries(g.database) if view == "providers" else [],
         ), status
 
     @app.post("/demo-email/providers")
@@ -199,7 +225,7 @@ def create_app(database: Path | str | None = None) -> Flask:
             flash("Rejected. " + str(error), "error")
         else:
             flash(f"{result['status'].capitalize()} delivery. {result['reason']}", "success")
-        return redirect(url_for("demo_email", _anchor="provider-mail"), code=303)
+        return redirect(url_for("demo_email", view="providers"), code=303)
 
     @app.post("/demo-email/<message_id>/replay")
     def replay_email(message_id: str) -> Response:
@@ -208,7 +234,7 @@ def create_app(database: Path | str | None = None) -> Flask:
         except (KeyError, ValueError):
             abort(404)
         flash(f"Duplicate delivery recognised for {key}. No new enquiry or message was created.", "success")
-        return redirect(url_for("demo_email"), code=303)
+        return redirect(url_for("demo_email", view="history"), code=303)
 
     @app.route("/enquiries/new", methods=["GET", "POST"])
     def new_enquiry() -> Response | str | tuple[str, int]:

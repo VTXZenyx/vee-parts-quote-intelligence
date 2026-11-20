@@ -5,6 +5,7 @@ from playwright.sync_api import Page, expect
 
 def exercise_providers(page: Page, address: str) -> None:
     page.goto(address + "/demo-email")
+    page.get_by_role("link", name="Provider fixtures").click()
 
     def receive(key):
         page.get_by_label("Simulated provider message").select_option(key)
@@ -24,11 +25,14 @@ def exercise_providers(page: Page, address: str) -> None:
     link.click()
     expect(page.locator("#conversation li")).to_have_count(2)
     expect(page.locator("#findings")).to_contain_text("<c1@mail.example>")
-    page.get_by_text("Process or review this message", exact=True).click()
+    page.get_by_role("link", name="Read source message 2").click()
+    expect(page.locator(":target")).to_have_id("customer-message-2")
+    expect(page.locator(":target")).to_contain_text("Bore 32 mm")
+    page.get_by_text("Change processing method", exact=True).click()
     page.get_by_label("Processing method").select_option("mock")
     page.get_by_role("button", name="Process selected message").click()
     expect(page.locator("#findings")).to_contain_text("Mock model")
-    page.get_by_text("Process or review this message", exact=True).click()
+    page.get_by_text("Review or correct a finding", exact=True).click()
     page.get_by_label("Evidence or reason").fill("Compared to the source dimensions")
     page.get_by_role("button", name="Record finding review").click()
     expect(page.locator("#findings")).to_contain_text("Employee reviewed")
@@ -40,6 +44,7 @@ def exercise_providers(page: Page, address: str) -> None:
     state = page.locator("#conversation, #activity, #quotation")
     before = state.all_text_contents()
     page.goto(address + "/demo-email")
+    page.get_by_role("link", name="Provider fixtures").click()
     reply.locator("summary").first.click()
     reply.get_by_role("button", name="Replay provider delivery").click()
     expect(page.get_by_role("status")).to_contain_text("Duplicate")
