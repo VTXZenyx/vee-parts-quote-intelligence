@@ -20,7 +20,7 @@
 <header class="workspace-heading">
   <div>
     <h1>Enquiry workspace</h1>
-    <p>Review customer parts requests, verify catalogue matches and prepare quotations.</p>
+    <p>VEE Industrial Supplies · Hamilton, New Zealand · Fictional distributor</p>
   </div>
   <div class="stack">
     <a class="button" href="{{ url_for('demo_email') }}#compose">{{ icon('mail',16) }} Create test email</a>
@@ -33,6 +33,9 @@
     {% endif %}
   </div>
 </header>
+<details class="panel case-section"><summary>Distributor profile and warehouse policies</summary>
+<p>Our fictional Hamilton warehouse supplies bearings, pneumatic cylinders, hydraulic adapters and fasteners. Sales desk · quotes@vee.example.</p>
+<p>All inventory and prices are synthetic. Quotes use NZD net list or agreed account prices plus 15% GST. Contract-only accounts require an agreed rate. Stock is never reserved and delivery dates require supplier confirmation.</p></details>
 
 <nav class="metrics" aria-label="Filter enquiries by workflow stage">
 {% for key, label, symbol in filters %}

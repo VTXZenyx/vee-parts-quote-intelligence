@@ -19,7 +19,7 @@ class Part:
     family: str
     name: str
     specs: dict[str, str]
-    stock: int
+    stock: int | None
     price: str
     discontinued: bool = False
 
@@ -129,11 +129,52 @@ PARTS = (
         "21.50",
     ),
 )
+
+# Additional shelf lines in the Hamilton demonstration warehouse. Each tuple is
+# a fictional stock count and NZD list price for a distinct replacement part.
+def _warehouse_lines() -> list[Part]:
+    rows = []
+    for series, bore, od, width, qty, price in (
+        ("6202", 15, 35, 11, 24, "8.50"), ("6203", 17, 40, 12, 6, "9.80"),
+        ("6204", 20, 47, 14, 36, "11.60"), ("6206", 30, 62, 16, 18, "15.75"),
+        ("6207", 35, 72, 17, 8, "19.50"), ("6208", 40, 80, 18, 3, "24.90"),
+    ):
+        for suffix, closure in (("2RS", "rubber seals"), ("ZZ", "metal shields")):
+            rows.append(Part(f"BRG-{series}-{suffix}", "Bearing",
+                             f"{series} deep-groove bearing · {closure}",
+                             {"bore": f"{bore} mm", "outside diameter": f"{od} mm",
+                              "width": f"{width} mm", "closure": closure},
+                             None if (series, suffix) == ("6208", "ZZ") else qty, price))
+    for bore, stroke, qty, price in (
+        (32, 50, 8, "134.50"), (32, 200, 3, "186.00"), (40, 50, 5, "162.00"),
+        (40, 160, 3, "199.00"), (40, 200, 0, "216.00"), (50, 50, 4, "201.00"),
+        (50, 100, 6, "227.50"), (50, 160, 2, "250.00"),
+    ):
+        rows.append(Part(f"CYL-{bore}-{stroke}-DA", "Pneumatic cylinder",
+                         f"ISO cylinder · {bore} × {stroke} mm", _cylinder(bore, stroke), qty, price))
+    for length, qty, price in ((30, 300, "1.95"), (40, 150, "2.40"), (50, 120, "2.65"),
+                               (60, 70, "3.10"), (100, 45, "4.75")):
+        for grade in ("8.8", "10.9"):
+            rows.append(Part(f"BLT-M12-{length}-G{grade.replace('.', '')}", "Fastener",
+                             f"M12 × {length} hex bolt · grade {grade}",
+                             {"thread": "M12", "length": f"{length} mm", "pitch": "1.75 mm",
+                              "grade": grade}, qty, price))
+    for thread, pressure, qty, price in (("BSPP", 250, 10, "24.50"), ("NPT", 200, 6, "26.50"),
+                                         ("BSPT", 160, 4, "27.00")):
+        for size in ("3/8", "1/2"):
+            rows.append(Part(f"ADP-{thread}-{size.replace('/', '')}", "Hydraulic adapter",
+                             f"Hydraulic nipple · {size} in {thread}",
+                             {"thread": thread, "size": f"{size} in", "pressure": f"{pressure} bar",
+                              "connection": "male to male"}, qty, price))
+    return rows
+
+
+PARTS += tuple(_warehouse_lines())
 BY_SKU = {p.sku: p for p in PARTS}
 # Explicit net rates from the synthetic account agreement. Some agreements forbid fallback.
 CONTRACTS = {
     "harbour packaging": {"CYL-32-100-DA": "137.50"},
-    "contract only engineering": {},
+    "contract only engineering": {"BRG-6205-2RS": "10.00"},
 }
 CONTRACT_ONLY = {"contract only engineering"}
 FAMILIES = {
@@ -196,7 +237,8 @@ def _commercial(part: Part, account: str) -> Record:
         else (
             f"{part.stock} on hand"
             if part.stock
-            else "Special order · supplier availability unknown"
+            else ("Availability unknown · supplier confirmation required" if part.stock is None
+                  else "Out of stock · supplier confirmation required")
         )
     )
     return {
@@ -350,7 +392,8 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
         r"(?<![\w./+-])(?:(?:working )?pressure\s*[:=]?\s*)?(\d+(?:\.\d+)?)\s*bar\b",
         " bar",
     )
-    capture("size", r'(?<![\w/])1/4\s*(?:in(?:ch(?:es)?)?\b|")', fixed="1/4 in")
+    for size in ("1/4", "3/8", "1/2"):
+        capture("size", rf'(?<![\w/]){size}\s*(?:in(?:ch(?:es)?)?\b|")', fixed=f"{size} in")
     capture("grade", r"\bgrade\s+(\d+\.\d+)\b")
     return (
         {k: " / ".join(sorted(v)) for k, v in found.items()},
@@ -480,7 +523,9 @@ def _analyse_line(text: str, account: str, ambiguous: bool) -> Record:
     sku = compatible[0].sku if status == "verified" else None
     if sku and quantity:
         commercial = _commercial(BY_SKU[sku], account)
-        if quantity > commercial["stock"]:
+        if commercial["stock"] is None:
+            issues.append("Warehouse availability unknown. Confirm stock with the supplier before quoting.")
+        elif quantity > commercial["stock"]:
             issues.append(
                 "Insufficient confirmed stock. Supplier availability and delivery are unconfirmed."
             )
@@ -522,7 +567,7 @@ def analyse(text: str, account: str = "") -> Record:
             requested[line["sku"]] += line["quantity"]
     for line in lines:
         sku = line["sku"]
-        if sku and requested[sku] > BY_SKU[sku].stock and not line["issues"]:
+        if sku and not line["issues"] and requested[sku] > (BY_SKU[sku].stock or 0):
             line["issues"].append(
                 "Combined quantity exceeds confirmed stock for this reference."
             )
@@ -576,6 +621,7 @@ def build_quote(
         commercial = _commercial(part, account)
         if (
             part.discontinued
+            or part.stock is None
             or quantity > part.stock
             or commercial["unit_price"] is None
         ):
