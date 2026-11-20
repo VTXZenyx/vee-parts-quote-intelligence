@@ -2,26 +2,38 @@
 {% from 'stages.html' import stage_copy %}
 {% from 'components.html' import icon, status, date %}
 {% block content %}
-{% set groups = {'all':none, 'review':['needs_clarification','needs_verification','verified','rejected','commercial_hold'], 'awaiting':['awaiting_reply'], 'quotes':['draft_quote'], 'approved':['approved']} %}
+{% set groups = {
+  'all': none,
+  'review': ['needs_clarification','needs_verification','verified','draft_quote','rejected','commercial_hold'],
+  'technical': ['needs_verification'],
+  'awaiting': ['awaiting_reply'],
+  'quotes': ['draft_quote'],
+  'blocked': ['needs_clarification','commercial_hold'],
+  'approved': ['approved']
+} %}
+{% set filters = [('review','Needs attention','inbox'),('technical','Technical review','list-check'),
+                   ('awaiting','Waiting for customer','clock'),('quotes','Quotes to review','document-check'),
+                   ('blocked','Blocked','alert'),('approved','Completed','check')] %}
 {% set stage = request.args.get('stage', 'all') %}
 {% if stage not in groups %}{% set stage = 'all' %}{% endif %}
 {% set matching = rows if stage == 'all' else rows|selectattr('status','in',groups[stage])|list %}
-<section class="hero" aria-labelledby="workspace-title">
-  <div class="hero-art"></div>
-  <div class="hero-copy">
-    <h1 id="workspace-title">Enquiry workspace</h1>
-    <p>Turn a customer parts request into a reviewed quotation. Check the catalogue evidence, clarify missing details, and approve the quote when it’s ready.</p>
-    <div class="hero-actions"><a class="button hero-primary" href="{{ url_for('demo_email') }}">{{ icon('mail',16) }} Create test email</a>
-      <a class="button hero-secondary" href="{{ url_for('demo_email', scenario='cylinder') }}">Try sample workflow {{ icon('arrow-right',15) }}</a></div>
+<header class="workspace-heading">
+  <div>
+    <h1>Enquiry workspace</h1>
+    <p>Review customer parts requests, verify catalogue matches and prepare quotations.</p>
   </div>
-</section>
+  <div class="stack">
+    <a class="button" href="{{ url_for('demo_email') }}#compose">{{ icon('mail',16) }} Create test email</a>
+    <a class="button primary" href="{{ url_for('demo_email', scenario='cylinder') }}">Try sample workflow {{ icon('arrow-right',15) }}</a>
+  </div>
+</header>
 
 <nav class="metrics" aria-label="Filter enquiries by workflow stage">
-{% for key, label, symbol in [('all','All enquiries','inbox'),('review','Needs review','list-check'),('awaiting','Awaiting reply','clock'),('quotes','Quotes to review','document-check'),('approved','Approved quotes','check')] %}
-  {% set total = all_rows|length if key == 'all' else all_rows|selectattr('status','in',groups[key])|list|length %}
-  <a class="metric metric-{{ key }}{% if stage == key %} selected{% endif %}" href="{{ url_for('inbox', stage=key, q=q) }}#enquiries"{% if stage == key %} aria-current="true"{% endif %}>
+{% for key, label, symbol in filters %}
+  {% set total = all_rows|selectattr('status','in',groups[key])|list|length %}
+  <a class="metric metric-{{ key }}{% if stage == key %} selected{% endif %}" href="{{ url_for('inbox', stage=key, q=q or none) }}#enquiries"{% if stage == key %} aria-current="true"{% endif %}>
     <span class="metric-info"><span>{{ label }}</span><strong>{{ total }}</strong></span>
-    <span class="metric-icon">{{ icon(symbol,21) }}</span>
+    <span class="metric-icon">{{ icon(symbol,18) }}</span>
   </a>
 {% endfor %}
 </nav>
@@ -29,9 +41,13 @@
 <section class="panel queue" id="enquiries" aria-labelledby="enquiries-title">
   <div class="queue-head">
     <div><div class="heading-row"><h2 id="enquiries-title">Enquiry inbox</h2><span class="count">{{ matching|length }}</span></div>
-    <p class="subtle">Customer requests and their current workflow stage.</p></div>
+    {% if stage != 'all' or q %}<p class="subtle">
+    {{ matching|length }} of {{ all_rows|length }} enquiries
+    {% for key, label, _ in filters %}{% if key == stage %} · {{ label }}{% endif %}{% endfor %}
+    {% if q %} · “{{ q }}”{% endif %}
+    <a href="{{ url_for('inbox') }}#enquiries">Clear filters</a></p>{% endif %}</div>
     <a class="button" href="{{ url_for('new_enquiry') }}">New enquiry</a>
-    <form class="search" action="{{ url_for('inbox') }}" role="search">
+    <form class="search" action="{{ url_for('inbox', _anchor='enquiries') }}" role="search">
       <input type="hidden" name="stage" value="{{ stage }}">
       {{ icon('search',17) }}<input type="search" name="q" value="{{ q }}" aria-label="Search subject, customer or enquiry ID" placeholder="Search enquiries…">
       <button class="search-submit" aria-label="Search">{{ icon('arrow-right',16) }}</button>
@@ -39,7 +55,7 @@
   </div>
   {% if matching %}
   <table class="inbox-table">
-    <thead><tr><th scope="col">Enquiry</th><th scope="col">Customer</th><th scope="col">Status</th><th scope="col">Received</th><th scope="col"><span class="sr">Open</span></th></tr></thead>
+    <thead><tr><th scope="col">Enquiry</th><th scope="col">Customer</th><th scope="col">Status</th><th scope="col">Received</th><th scope="col" class="row-open">Next action</th></tr></thead>
     <tbody>{% for row in matching %}
     <tr>
       <td class="subject"><a href="{{ url_for('enquiry', id=row.id) }}"><span class="row-icon">{{ icon('mail',18) }}</span><span><strong>{{ row.subject }}</strong><span class="row-meta mono">{{ row.id }}{% if row.extraction.urgent %}<span class="urgent">Priority</span>{% endif %}</span></span></a></td>

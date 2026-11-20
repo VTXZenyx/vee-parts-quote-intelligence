@@ -8,6 +8,7 @@ from threading import Thread
 from playwright.sync_api import Page, expect, sync_playwright
 from werkzeug.serving import make_server
 
+from scripts.browser_dashboard import exercise_dashboard
 from scripts.browser_demo import exercise_demo
 from scripts.browser_providers import exercise_providers
 from scripts.browser_review import exercise_review
@@ -88,6 +89,7 @@ def main() -> None:
                 page.on("response", lambda r: errors.append(f"{r.status} {r.url}")
                         if r.status >= 400 and "/static/" in r.url else None)
                 address = f"http://127.0.0.1:{server.server_port}"
+                exercise_dashboard(page, address)
                 exercise(page, address)
                 exercise_review(page, address)
                 exercise_demo(page, address)

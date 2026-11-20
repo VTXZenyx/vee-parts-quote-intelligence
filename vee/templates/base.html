@@ -18,12 +18,13 @@
       <span class="brandname">VEE</span><span class="product">Parts &amp; Quote Intelligence</span>
     </a>
     <nav class="workspace-nav" aria-label="Workspace">
+      <a href="{{ url_for('inbox') }}" {% if request.endpoint == 'inbox' %}aria-current="page"{% endif %}>Enquiries</a>
       <a href="{{ url_for('demo_email') }}" {% if request.endpoint in ('demo_email', 'replay_email') %}aria-current="page"{% endif %}>{{ icon('mail', 16) }} Demo Email Inbox</a>
       <span class="environment"><span></span>{{ 'Fresh demo workspace' if demo_workspace else 'Synthetic workspace' }}</span>
     </nav>
   </div>
 </header>
-<main class="shell" id="main">
+<main class="shell" id="main" tabindex="-1">
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% for category, message in messages %}<div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ icon('info') }} {{ message }}</div>{% endfor %}
 {% endwith %}
