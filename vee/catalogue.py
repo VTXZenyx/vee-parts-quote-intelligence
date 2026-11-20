@@ -11,6 +11,7 @@ VERSION = "SYN-2026-11-18"
 CENT = Decimal("0.01")
 GST_RATE = Decimal("0.15")
 MAX_QUANTITY = 9999
+SHORT_STOCK = "Insufficient confirmed stock. Supplier availability and delivery are unconfirmed."
 
 
 @dataclass(frozen=True)
@@ -44,7 +45,7 @@ def _bearing(seal: str) -> dict[str, str]:
     }
 
 
-PARTS = (
+PARTS: tuple[Part, ...] = (
     Part(
         "CYL-32-100-DA",
         "Pneumatic cylinder",
@@ -526,9 +527,7 @@ def _analyse_line(text: str, account: str, ambiguous: bool) -> Record:
         if commercial["stock"] is None:
             issues.append("Warehouse availability unknown. Confirm stock with the supplier before quoting.")
         elif quantity > commercial["stock"]:
-            issues.append(
-                "Insufficient confirmed stock. Supplier availability and delivery are unconfirmed."
-            )
+            issues.append(SHORT_STOCK)
         if commercial["unit_price"] is None:
             issues.append("No authorised price is available for this account.")
     return {
@@ -589,11 +588,31 @@ def analyse(text: str, account: str = "") -> Record:
     }
 
 
+def partial_offer(analysis: Record) -> Record | None:
+    """Allow one identified item whose only issue is a positive stock shortfall."""
+    if len(analysis["lines"]) != 1 or analysis["questions"]:
+        return None
+    line = analysis["lines"][0]
+    if line["status"] != "verified" or line["issues"] != [SHORT_STOCK]:
+        return None
+    matches = [part for part in line["candidates"] if part["sku"] == line["sku"]]
+    if len(matches) != 1:
+        return None
+    part = matches[0]
+    stock = part.get("stock")
+    if (type(stock) is not int or not 0 < stock < line["quantity"]
+            or part.get("discontinued") or not part.get("unit_price")):
+        return None
+    return {"sku": line["sku"], "available": stock, "outstanding": line["quantity"] - stock}
+
+
 def build_quote(
-    analysis: Record, account: str = "", quantities: dict[str, int] | None = None
+    analysis: Record, account: str = "", quantities: dict[str, int] | None = None,
+    *, partial: bool = False,
 ) -> Record:
     """Price an entire verified enquiry. Callers supply analysis derived server-side."""
-    if not analysis.get("ready") or not analysis.get("lines"):
+    offer = partial_offer(analysis) if partial else None
+    if (not analysis.get("ready") and not offer) or not analysis.get("lines"):
         raise ValueError("Resolve every technical and commercial issue before quoting.")
     requested: Counter[str] = Counter()
     for line in analysis["lines"]:
@@ -607,6 +626,8 @@ def build_quote(
             raise ValueError("Invalid verified quotation line.")
         requested[sku] += qty
     original_quantities = requested.copy()
+    if offer:
+        requested[offer["sku"]] = offer["available"]
     if quantities is not None:
         if not isinstance(quantities, dict) or quantities.keys() - requested.keys():
             raise ValueError("Quantities may only edit verified references.")
@@ -626,6 +647,8 @@ def build_quote(
             or commercial["unit_price"] is None
         ):
             raise ValueError("Confirmed stock and authorised pricing are required.")
+        if offer and quantity > offer["available"]:
+            raise ValueError("Refresh and verify the stock before increasing this partial quotation.")
         extended = Decimal(commercial["unit_price"]) * quantity
         subtotal += extended
         lines.append(

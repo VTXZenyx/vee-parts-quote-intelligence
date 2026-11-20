@@ -23,6 +23,7 @@ from werkzeug.exceptions import Forbidden
 from werkzeug.wrappers import Response
 
 from vee import demo, findings, provider_mail, store
+from vee.catalogue import partial_offer
 from vee.extraction import live_enabled
 
 WORKSPACE_COOKIE = "vee_demo_workspace"
@@ -277,7 +278,7 @@ def create_app(database: Path | str | None = None) -> Flask:
             flash(str(error), "error")
             source, advisory = "", None
         return render_template("detail.html", item=item, advisory=advisory, source=source,
-                               inbound=findings.sources(item), live_enabled=live_enabled())
+                               partial=partial_offer(item["extraction"]), inbound=findings.sources(item), live_enabled=live_enabled())
 
     @app.post("/enquiries/<id>/findings")
     @app.post("/enquiries/<id>/findings/<operation>")

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from vee.catalogue import FAMILIES, analyse, build_quote, current_record
+from vee.catalogue import FAMILIES, analyse, build_quote, current_record, partial_offer
 
 SEEDS: tuple[tuple[str, str, str, str, list[dict[str, str]], str], ...] = (
     ("ENQ-1042", "Harbour Packaging", "Replacement cylinders for packaging line",
@@ -39,7 +39,7 @@ ALLOWED = {
     "draft_quote": {"edit_quote", "approve_quote", "reject_quote", "refresh_evidence"},
     "rejected": {"edit_quote", "refresh_evidence"},
     "approved": set(),
-    "commercial_hold": {"refresh_evidence"},
+    "commercial_hold": {"refresh_evidence", "verify_partial"},
 }
 
 V2_SCHEMA = """
@@ -450,10 +450,10 @@ def _technical_evidence(item):
             if candidate["sku"] == line["sku"]]
 
 
-def _verified_skus(item):
+def _verified_skus(item, *, partial=False):
     analysis = item["extraction"]
     skus = [line["sku"] for line in analysis["lines"]]
-    if (not analysis["ready"] or not skus or any(not sku for sku in skus)
+    if ((not analysis["ready"] and not (partial and partial_offer(analysis))) or not skus or any(not sku for sku in skus)
             or any(line["status"] != "verified" for line in analysis["lines"])):
         raise ValueError("Resolve the outstanding technical questions before verification.")
     evidence = _technical_evidence(item)
@@ -464,13 +464,16 @@ def _verified_skus(item):
         if not current or any(current.get(k) != saved.get(k)
                               for k in ("sku", "name", "family", "specs", "source", "discontinued")):
             raise ValueError("Catalogue specifications changed. Refresh the evidence and verify each product again.")
+        if partial and any(current.get(k) != saved.get(k) for k in ("stock", "unit_price", "price_basis")):
+            raise ValueError("Refresh the changed stock or price before verifying a partial quotation.")
     return skus
 
 
 def _commercial(item, quantities=None):
-    if _verified_skus(item) != item["selected_skus"]:
+    partial = not item["extraction"]["ready"]
+    if _verified_skus(item, partial=partial) != item["selected_skus"]:
         raise ValueError("Verify each selected product before preparing a quotation.")
-    return build_quote(item["extraction"], account=item["customer"], quantities=quantities)
+    return build_quote(item["extraction"], account=item["customer"], quantities=quantities, partial=partial)
 
 
 def _latest_quote(db, item):
@@ -567,8 +570,11 @@ def _transition(db, item, action, fields, at, envelope=None):
         item["status"] = "needs_clarification"
         item["clarification"] = ""
         return reason
-    if action == "verify_match":
-        skus = _verified_skus(item)
+    if action in {"verify_match", "verify_partial"}:
+        partial = action == "verify_partial"
+        if partial and not partial_offer(item["extraction"]):
+            raise ValueError("This request is ineligible for a partial quotation.")
+        skus = _verified_skus(item, partial=partial)
         submitted = [fields.get(f"sku_{i}", fields.get("sku") if len(skus) == 1 else None)
                      for i in range(len(skus))]
         if submitted != skus:
@@ -576,6 +582,8 @@ def _transition(db, item, action, fields, at, envelope=None):
         item.update(selected_skus=skus, selected_sku=skus[0], status="verified")
         records = [{key: evidence[key] for key in ("sku", "source", "specs")}
                    for evidence in _technical_evidence(item)]
+        if partial:
+            return "Employee verified the match and accepted a partial quotation: " + json.dumps(partial_offer(item["extraction"]))
         return "Employee verified catalogue evidence: " + json.dumps(records, ensure_ascii=False, sort_keys=True)
     if action in {"create_quote", "edit_quote"}:
         return _save_quote(db, item, action, fields, at)

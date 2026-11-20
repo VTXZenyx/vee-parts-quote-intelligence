@@ -30,6 +30,7 @@
       {% for line in quote.lines %}<tr role="row">
         <th scope="row">
           <strong>{{ line.name }}</strong><small class="mono">{{ line.sku }}</small>
+          {% if line.requested_quantity is defined and line.quantity < line.requested_quantity %}<small class="issues">Partial quotation · {{ line.requested_quantity - line.quantity }} units outstanding</small>{% endif %}
           <small>{{ line.availability }}</small><small>{{ line.delivery or 'Delivery date unconfirmed' }}</small>
         </th>
         <td role="cell" class="requested-quantity"><span class="mobile-label" aria-hidden="true">Requested</span>{{ line.requested_quantity|default('Unrecorded') }}</td>

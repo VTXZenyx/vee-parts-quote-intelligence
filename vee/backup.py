@@ -12,6 +12,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from vee import findings
+from vee.catalogue import partial_offer
 from vee.extraction import validate
 from vee.provider_mail import normalise
 from vee.store import ALLOWED, SCHEMA, V2_SCHEMA
@@ -162,7 +163,7 @@ def _verify_enquiry(raw: str, key: str, revision: int) -> dict:
         raise ValueError("Enquiry readiness disagrees with the saved requirements.")
     reviewed = state["status"] in {"verified", "draft_quote", "rejected", "approved"}
     if reviewed and (
-        not ready
+        (not ready and not partial_offer(analysis))
         or state["selected_skus"] != matched
         or state.get("selected_sku") != matched[0]
     ):
@@ -249,7 +250,7 @@ def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None
     if quotes.fetchone() is not None:
         raise ValueError("A quotation version has no corresponding save event.")
     final_actions = {
-        "verified": {"verify_match"},
+        "verified": {"verify_match", "verify_partial"},
         "draft_quote": {"create_quote", "edit_quote"},
         "approved": {"approve_quote"},
         "rejected": {"reject_quote"},

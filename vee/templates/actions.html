@@ -25,7 +25,7 @@
     <button name="action" value="verify_match" class="button primary">{{ icon('check',16) }}Verify match{{ 'es' if item.extraction.lines|length > 1 }}</button>
   </form>{{ reject(item, csrf, 'reject_match', 'Reject proposed match') }}
 {% elif item.status == 'verified' %}
-  <h2>Prepare quotation</h2><p>The selected products have been verified. Create a draft using the synthetic account prices and stock records.</p>
+  <h2>Prepare quotation</h2>{% if partial %}<p class="issues">Partial quotation · {{ partial.available }} available, {{ partial.outstanding }} outstanding.</p>{% endif %}<p>The selected products have been verified. Create a draft using the synthetic account prices and stock records.</p>
   <form action="{{ post }}" method="post">{{ identity(item, csrf) }}<button name="action" value="create_quote" class="button primary">{{ icon('document-check',16) }}Create draft quotation</button></form>
 {% elif item.status in ['draft_quote','rejected'] %}
   {% set quote = item.quotes|last %}
@@ -47,6 +47,10 @@
   <a class="button" href="#quotation">{{ icon('document-check',16) }}View approved quotation</a>
 {% elif item.status == 'commercial_hold' %}
   <h2>Commercial hold</h2><p>Review the outstanding stock or pricing issues in the technical investigation before a quotation can progress.</p><a href="#evidence" class="button">Review issues {{ icon('arrow-right',15) }}</a>
+  {% if partial %}<form method="post" action="{{ post }}">{{ identity(item, csrf) }}
+    <p>Only {{ partial.available }} units can be quoted. The remaining {{ partial.outstanding }} require supplier confirmation.</p>
+    <label class="confirm"><input name="sku" value="{{ partial.sku }}" type="checkbox" required>Confirm the technical match for {{ partial.sku }}</label>
+    <button class="button primary" name="action" value="verify_partial">Verify for a partial quotation</button></form>{% endif %}
 {% endif %}
 
 {% if item.status in ['needs_verification','verified','draft_quote','rejected','commercial_hold'] %}
