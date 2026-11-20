@@ -43,3 +43,9 @@ Requests to every vendor's supplied public HTTPS site failed at the environment'
 | Scoura | [Vendor site](https://www.scoura.com.au) | Documented sourcing coverage, alternate-part evidence and treatment of uncertain supplier availability. |
 
 Close the commercial review with dated vendor documentation, a direct source for each capability and a distinction between published descriptions and behaviour actually tested. For a future retrieval experiment, record exact-identifier accuracy, top-k candidate recall, false verified matches on deliberately confusable parts, abstentions, latency and cost using the same approved test set. Production candidates additionally need a pinned dependency and data-rights review against the particular version, model weights and archive used.
+
+## Optional V3 extraction SDK
+
+Reviewed the published openai-python 3.57.0 wheel metadata, client source, completion API and dependency lock before installation. The official Python SDK uses Apache-2.0 and lists httpx2, anyio, jiter, Pydantic, sniffio and typing-extensions as direct dependencies. The base Flask installation remains independent. The optional adapter uses structured Chat Completions and a fixed HTTPS endpoint with storage disabled. Provider processing and retention terms still apply to submitted text. This milestone authorises synthetic records only. No service request was needed to exercise the SDK through an in-memory HTTP transport.
+
+[SDK repository](https://github.com/openai/openai-python) · [Release metadata](https://pypi.org/project/openai/3.57.0/) · [API data controls](https://platform.openai.com/docs/guides/your-data)
