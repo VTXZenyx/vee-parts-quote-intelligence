@@ -11,7 +11,10 @@ from contextlib import closing
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
-from vee.store import ALLOWED, SCHEMA
+from vee import findings
+from vee.extraction import validate
+from vee.provider_mail import normalise
+from vee.store import ALLOWED, SCHEMA, V2_SCHEMA
 
 
 def _fields(value: object, **schema: type) -> dict:
@@ -169,6 +172,32 @@ def _verify_enquiry(raw: str, key: str, revision: int) -> dict:
     return state
 
 
+def _verify_findings(item: dict) -> None:
+    for index, saved in item.get("advisories", {}).items():
+        _, identity, subject, body = findings.select(item, index)
+        _fields(saved, method=str, model=str, source=str, notice=str, findings=list)
+        if saved["method"] not in {"deterministic", "mock", "openai"} or identity != saved["source"]:
+            raise ValueError("Advisory source or method is invalid.")
+        text = subject + "\n" + body if subject and saved["method"] == "openai" else body
+        if validate({"findings": saved["findings"]}, text) != saved["findings"]:
+            raise ValueError("Saved findings lost a source qualifier.")
+        for number, review in saved.get("reviews", {}).items():
+            if number not in {str(n) for n in range(len(saved["findings"]))}:
+                raise ValueError("Invalid reviewed finding.")
+            _fields(review, decision=str, original=str, reason=str)
+            if (review["decision"] not in {"confirm", "correct"} or not review["reason"].strip()
+                    or review["original"] != saved["findings"][int(number)]["value"]
+                    or (review["decision"] == "correct" and not review.get("replacement"))):
+                raise ValueError("Invalid finding review.")
+    for hold in item.get("correction_hold", []):
+        _fields(hold, source=str, finding=str, replacement=str, after=int)
+        findings.select(item, hold["source"])
+        if (not 1 <= hold["after"] <= len(findings.sources(item))
+                or item["status"] not in {"needs_clarification", "awaiting_reply"}
+                or item["extraction"]["ready"] or item["selected_skus"]):
+            raise ValueError("An outstanding correction needs customer clarification.")
+
+
 def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None:
     events = database.execute(
         "SELECT revision, action, detail FROM events WHERE enquiry_id=? ORDER BY revision",
@@ -190,7 +219,11 @@ def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None
     version = 0
     quote_reference = ""
     approved = False
+    workflow_actions = []
     for _, action, detail in events:
+        if action in {"extract_findings", "review_finding"}:
+            continue
+        workflow_actions.append(action)
         if action == "recheck_requirements":
             approved = False
         elif approved:
@@ -223,7 +256,7 @@ def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None
         "awaiting_reply": {"approve_clarification"},
     }
     status = state["status"]
-    if status in final_actions and events[-1][1] not in final_actions[status]:
+    if status in final_actions and workflow_actions[-1] not in final_actions[status]:
         raise ValueError("The current state lacks its corresponding audit decision.")
     if approved != (status == "approved") or (
         status in {"rejected", "draft_quote"} and not version
@@ -237,7 +270,8 @@ def _verify_snapshot(database: sqlite3.Connection) -> None:
     objects = "SELECT type, name, sql FROM sqlite_schema WHERE name NOT GLOB 'sqlite_*' ORDER BY name"
     database.execute("PRAGMA trusted_schema=OFF")
     with closing(sqlite3.connect(":memory:")) as reference:
-        reference.executescript(SCHEMA)
+        version = database.execute("PRAGMA user_version").fetchone()[0]
+        reference.executescript(V2_SCHEMA if version < 3 else SCHEMA)
         if (
             database.execute(objects).fetchall()
             != reference.execute(objects).fetchall()
@@ -254,11 +288,34 @@ def _verify_snapshot(database: sqlite3.Connection) -> None:
         "SELECT 1 FROM quotes WHERE enquiry_id IS NULL LIMIT 1"
     ).fetchone():
         raise ValueError("An audit event or quote lacks its owning enquiry.")
+    sources: dict[tuple[str, str], tuple[str, dict]] = {}
     for key, revision, raw in database.execute(
         "SELECT id,revision,state FROM enquiries"
     ):
         state = _verify_enquiry(raw, key, revision)
         _verify_history(database, key, state)
+        _verify_findings(state)
+        for message in state["thread"]:
+            if "provider" in message:
+                identity = (message["provider"], message["mid"])
+                if identity in sources:
+                    raise ValueError("Duplicate provider identity in source history.")
+                sources[identity] = (key, message)
+    if version >= 3:
+        for provider, mid, thread, internet, raw, saved, key in database.execute(
+            "SELECT provider,mid,thread,internet,raw,normalised,enquiry_id FROM provider_mail"
+        ):
+            source = normalise(provider, json.loads(raw))
+            if (source != json.loads(saved)
+                    or (mid, thread, internet) != (source["mid"], source["thread"], source["internet"])):
+                raise ValueError("Provider receipt disagrees with its original envelope.")
+            if key:
+                owner, message = sources.pop((provider, mid), (None, {}))
+                if owner != key or any(message.get(k) != source[k] for k in
+                                       ("body", "at", "internet", "sender", "recipient", "subject", "attachments")):
+                    raise ValueError("Provider receipt disagrees with its enquiry source history.")
+    if sources:
+        raise ValueError("A message in source history lacks its provider receipt.")
 
 
 def _stop_if_busy(status: int, remaining: int, total: int) -> None:

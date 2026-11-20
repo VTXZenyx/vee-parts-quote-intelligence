@@ -9,6 +9,7 @@ from playwright.sync_api import Page, expect, sync_playwright
 from werkzeug.serving import make_server
 
 from scripts.browser_demo import exercise_demo
+from scripts.browser_providers import exercise_providers
 from scripts.browser_review import exercise_review
 from vee.web import create_app
 
@@ -90,6 +91,7 @@ def main() -> None:
                 exercise(page, address)
                 exercise_review(page, address)
                 exercise_demo(page, address)
+                exercise_providers(page, address)
                 assert not errors, errors
                 browser.close()
             print("Browser workflow and mobile layout checks passed.")

@@ -333,8 +333,8 @@ details form { margin-top: 12px; }
 }
 .mail-layout h2 { font-size: 1.12rem; margin: 0 0 12px; }
 .mail-layout p { font-size: .9rem; }
-.mail-composer label { display: block; margin-bottom: 5px; font-size: .82rem; font-weight: 650; }
-.mail-composer input,.mail-composer select,.mail-composer textarea {
+.mail-composer label, .mail-form label { display: block; margin-bottom: 5px; font-size: .82rem; font-weight: 650; }
+.mail-composer input,.mail-composer select,.mail-composer textarea,.mail-form select,.mail-form input {
   width: 100%;
   min-width: 0;
   border: 1px solid #afc5b5;
@@ -386,3 +386,14 @@ details form { margin-top: 12px; }
 
 .workflow-summary { margin-bottom: 16px; }
 .mailbox-section + .mailbox-section { margin-top: 16px; }
+
+.provider-mail { margin-block: 1rem; }
+.provider-mail .mail-form { max-width: 42rem; margin-bottom: 1rem; }
+.provider-mail select, #findings select, #findings input { width: 100%; min-width: 0; }
+.provider-mail, #findings { overflow-wrap: anywhere; min-width: 0; }
+.source-json { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }
+.findings-list { margin: 0; }
+.findings-list div { padding-block: .45rem; border-bottom: 1px solid #d6dfd9; }
+.findings-list dt, .findings-list small { font-size: .85rem; color: #425c53; }
+.findings-list dd { margin: .15rem 0; }
+.findings-list small { display: block; }

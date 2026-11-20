@@ -4,9 +4,10 @@
 {% block content %}
 <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ url_for('inbox') }}">{{ icon('arrow-left',15) }} Enquiry inbox</a></nav>
 <header class="case-head demo-heading">
-  <div><h1>Demo Email Inbox</h1><p>Receive fictional customer emails, reply to a clarification, or replay a delivery. Everything stays in this local workspace.</p></div>
+  <div><h1>Demo Email Inbox</h1><p>Receive fictional customer emails, reply to a clarification, or replay a delivery. Provider deliveries are simulated locally.</p></div>
   <form method="post" action="{{ url_for('start_demo') }}"><input name="csrf" type="hidden" value="{{ csrf }}"><button class="button" type="submit">Start fresh demo</button></form>
 </header>
+{% include 'provider_mail.html' %}
 <div class="mail-layout">
   <section class="panel case-section mail-composer" aria-labelledby="composer-title">
     <h2 id="composer-title">{{ 'Compose a demo reply' if item else 'Create test email' }}</h2>

@@ -434,9 +434,12 @@ def _analyse_line(text: str, account: str, ambiguous: bool) -> Record:
         )
     elif (part and part.discontinued) or HIGH_RISK.search(normal):
         status = "review"
-        issues.append(
-            "Discontinued reference or a condition requiring employee review."
-        )
+        if part and part.discontinued:
+            issues.append("Discontinued catalogue reference. A replacement requires employee review.")
+        elif re.search(r"\b(?:approve|ignore|override)\b", normal):
+            issues.append("Unsupported approval or override wording in the customer message. Employee review required.")
+        else:
+            issues.append("A conditional requirement or special service condition needs employee review.")
         questions.append(
             "Please confirm the intended service and any special conditions with a technical reviewer."
         )

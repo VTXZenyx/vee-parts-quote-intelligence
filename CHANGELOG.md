@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-20 · Intelligent enquiry processing
+
+Added offline Gmail and Outlook receipts, source-bound findings, optional model extraction and auditable employee corrections. Recovered replies follow accepted conversation order even when their receipt numbers differ. Backup checks validate provider ownership and saved findings. The employee can recover an early reply, inspect its evidence, verify two cylinders and approve the NZD 316.25 sample quotation.
+
 ## 2026-11-18 · Synthetic employee workflow
 
 Recovered the uncommitted Flask and SQLite application from the interrupted development session. The branch includes candidate evidence across four industrial families, mock commercial records, technical and clarification review, a printable versioned NZD quotation and a transactional audit trail.
