@@ -5,21 +5,26 @@ import os
 import secrets
 import sqlite3
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from flask import (
     Flask,
     abort,
     flash,
+    g,
+    make_response,
     redirect,
     render_template,
     request,
     session,
     url_for,
 )
+from werkzeug.exceptions import Forbidden
 from werkzeug.wrappers import Response
 
-from vee import store
+from vee import demo, store
+
+WORKSPACE_COOKIE = "vee_demo_workspace"
 
 
 def create_app(database: Path | str | None = None) -> Flask:
@@ -34,11 +39,19 @@ def create_app(database: Path | str | None = None) -> Flask:
         TRUSTED_HOSTS=["localhost", "127.0.0.1", "[::1]"],
     )
 
-    @app.context_processor
-    def form_context() -> dict[str, str]:
+    workspace_folder = path.parent / f"{path.name}.demos"
+
+    def csrf_token() -> str:
         if "csrf" not in session:
             session["csrf"] = secrets.token_urlsafe(32)
-        return {"csrf": session["csrf"]}
+        token = session["csrf"]
+        if g.workspace:
+            return hmac.digest(token.encode(), g.workspace.encode(), "sha256").hex()
+        return token
+
+    @app.context_processor
+    def form_context() -> dict[str, str]:
+        return {"csrf": csrf_token(), "demo_workspace": g.workspace}
 
     @app.after_request
     def response_headers(response: Response) -> Response:
@@ -56,15 +69,117 @@ def create_app(database: Path | str | None = None) -> Flask:
         app.logger.error("Workspace database operation failed (%s)", getattr(error, "sqlite_errorname", "SQLITE_ERROR"))
         return render_template("unavailable.html"), 503
 
+    @app.errorhandler(403)
+    def expired_form(error: Forbidden) -> tuple[str, int]:
+        return render_template("form_expired.html"), error.code or 403
+
+    @app.before_request
+    def select_workspace() -> None:
+        g.workspace = ""
+        g.database = path
+        selected = request.cookies.get(WORKSPACE_COOKIE)
+        if selected:
+            try:
+                identifier = UUID(selected)
+            except ValueError:
+                return
+            candidate = workspace_folder / f"{identifier.hex}.sqlite3"
+            if identifier.version == 4 and selected == identifier.hex and candidate.is_file():
+                g.workspace = identifier.hex
+                g.database = candidate
+
     @app.before_request
     def protect_mutations() -> None:
         if request.method != "POST":
             return
-        token = session.get("csrf")
-        if not token or not hmac.compare_digest(request.form.get("csrf", "").encode(), token.encode()):
+        if not session.get("csrf") or not hmac.compare_digest(
+            request.form.get("csrf", "").encode(), csrf_token().encode()
+        ):
             abort(403)
         if request.headers.get("Origin", request.host_url.rstrip("/")) != request.host_url.rstrip("/"):
             abort(403)
+
+    @app.post("/demo-workspace/start")
+    def start_demo() -> Response:
+        workspace_folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+        identifier = uuid4().hex
+        fresh = workspace_folder / f"{identifier}.sqlite3"
+        fresh.touch(mode=0o600, exist_ok=False)
+        store.init(fresh)
+        response = make_response(redirect(url_for("demo_email", scenario="cylinder"), code=303))
+        response.set_cookie(WORKSPACE_COOKIE, identifier, httponly=True, samesite="Strict")
+        flash("Fresh demo workspace ready. Start by receiving an example email.", "success")
+        return response
+
+    @app.post("/demo-workspace/original")
+    def original_workspace() -> Response:
+        response = make_response(redirect(url_for("inbox"), code=303))
+        response.delete_cookie(WORKSPACE_COOKIE)
+        flash("You’re back in the original workspace.", "success")
+        return response
+
+    @app.route("/demo-email", methods=["GET", "POST"])
+    def demo_email() -> Response | str | tuple[str, int]:
+        reply_to = (request.form if request.method == "POST" else request.args).get("reply_to") or None
+        item = None
+        if reply_to:
+            try:
+                item = store.detail(g.database, reply_to)
+            except KeyError:
+                abort(404)
+
+        values = {
+            "sender": "", "recipient": store.DEMO_RECIPIENT, "subject": "", "body": "", "customer": "",
+            "message_id": str(uuid4()), "revision": "",
+        }
+        if item:
+            values.update(store.reply_envelope(item), revision=str(item["revision"]))
+            example = demo.REPLY_EXAMPLES.get(request.args.get("reply_example", ""))
+            values["body"] = example[1] if example else (item["sample_reply"] or "")
+        else:
+            scenario = demo.SCENARIOS.get(request.args.get("scenario", ""))
+            if scenario:
+                values.update(customer=scenario.customer, sender=scenario.sender, subject=scenario.subject,
+                              body=scenario.body)
+
+        status = 200
+        if request.method == "POST":
+            values = {key: request.form.get(key, "") for key in values}
+            try:
+                key, repeated = store.receive_demo_email(
+                    g.database, values["message_id"], values["customer"], values["sender"], values["recipient"],
+                    values["subject"], values["body"], enquiry_id=reply_to, revision=values["revision"],
+                )
+            except ValueError as error:
+                flash(str(error), "error")
+                status = 422
+            else:
+                flash("Email already received. The conversation is unchanged." if repeated
+                      else "Demo email received. Review the enquiry and its next step.", "success")
+                return redirect(url_for("enquiry", id=key), code=303)
+        elif item and item["status"] != "awaiting_reply":
+            flash("Approve a clarification in the enquiry before recording a customer reply.", "error")
+            return redirect(url_for("enquiry", id=item["id"]), code=303)
+
+        rows = store.inbox(g.database)
+        deliveries = sorted(
+            ((row, message) for row in rows for message in row["thread"] if message.get("message_id")),
+            key=lambda entry: entry[1]["at"], reverse=True,
+        )
+        return render_template(
+            "demo_email.html", values=values, item=item, scenarios=demo.SCENARIOS, reply_examples=demo.REPLY_EXAMPLES,
+            deliveries=deliveries, waiting=[row for row in rows if row["status"] == "awaiting_reply"],
+            accounts=store.CUSTOMERS,
+        ), status
+
+    @app.post("/demo-email/<message_id>/replay")
+    def replay_email(message_id: str) -> Response:
+        try:
+            key, _ = store.replay_demo_email(g.database, message_id)
+        except (KeyError, ValueError):
+            abort(404)
+        flash(f"Duplicate delivery recognised for {key}. No new enquiry or message was created.", "success")
+        return redirect(url_for("demo_email"), code=303)
 
     @app.route("/enquiries/new", methods=["GET", "POST"])
     def new_enquiry() -> Response | str | tuple[str, int]:
@@ -72,7 +187,7 @@ def create_app(database: Path | str | None = None) -> Flask:
         message_id = values.get("message_id", str(uuid4()))
         if request.method == "POST":
             try:
-                key = store.receive(path, values.get("message_id", ""), values.get("customer", ""),
+                key = store.receive(g.database, values.get("message_id", ""), values.get("customer", ""),
                                     values.get("subject", ""), values.get("body", ""))
             except ValueError as error:
                 flash(str(error), "error")
@@ -84,7 +199,7 @@ def create_app(database: Path | str | None = None) -> Flask:
     @app.get("/")
     def inbox() -> str:
         query = request.args.get("q", "").strip()
-        rows = store.inbox(str(path))
+        rows = store.inbox(g.database)
         all_rows = rows
         if query:
             rows = [r for r in rows if any(query.casefold() in str(r[k]).casefold()
@@ -94,7 +209,7 @@ def create_app(database: Path | str | None = None) -> Flask:
     @app.get("/enquiries/<id>")
     def enquiry(id: str) -> str:
         try:
-            item = store.detail(str(path), id)
+            item = store.detail(g.database, id)
         except KeyError:
             abort(404)
         return render_template("detail.html", item=item)
@@ -102,7 +217,7 @@ def create_app(database: Path | str | None = None) -> Flask:
     @app.post("/enquiries/<id>/actions")
     def perform(id: str) -> Response:
         try:
-            store.act(str(path), id, request.form.get("action", ""), request.form.to_dict())
+            store.act(g.database, id, request.form.get("action", ""), request.form.to_dict())
         except KeyError:
             abort(404)
         except ValueError as error:

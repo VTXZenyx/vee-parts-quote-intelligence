@@ -8,6 +8,7 @@ from threading import Thread
 from playwright.sync_api import Page, expect, sync_playwright
 from werkzeug.serving import make_server
 
+from scripts.browser_demo import exercise_demo
 from scripts.browser_review import exercise_review
 from vee.web import create_app
 
@@ -88,6 +89,7 @@ def main() -> None:
                 address = f"http://127.0.0.1:{server.server_port}"
                 exercise(page, address)
                 exercise_review(page, address)
+                exercise_demo(page, address)
                 assert not errors, errors
                 browser.close()
             print("Browser workflow and mobile layout checks passed.")

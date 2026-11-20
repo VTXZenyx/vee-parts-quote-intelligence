@@ -6,7 +6,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from vee.catalogue import FAMILIES, analyse, build_quote, current_record
 
@@ -247,7 +247,7 @@ def _recheck_legacy_decisions(db):
 CUSTOMERS = tuple(sorted({seed[1] for seed in SEEDS} | {"Contract Only Engineering"}))
 
 
-def _insert_enquiry(db, key, customer, subject, body, attachments, reply, received, message_id=None):
+def _insert_enquiry(db, key, customer, subject, body, attachments, reply, received, message_id=None, envelope=None):
     item = {
         "id": key, "message_id": message_id, "customer": customer, "subject": subject, "body": body, "received_at": received,
         "sender": "maintenance@" + customer.lower().replace(" ", "-") + ".example",
@@ -255,35 +255,118 @@ def _insert_enquiry(db, key, customer, subject, body, attachments, reply, receiv
         "selected_skus": [], "revision": 1, "thread": [
             {"author": customer, "body": body, "at": received, "direction": "inbound"}],
     }
+    if envelope:
+        item["sender"] = envelope["sender"]
+        item["thread"][0].update(envelope)
     _investigate(item)
     db.execute("INSERT INTO enquiries VALUES (?,?,?)", (key, 1, json.dumps(item)))
     _audit(db, item, "Mock mailbox", "received", "Synthetic customer enquiry recorded.", received)
 
 
-def receive(path: str | Path, message_id: str, customer: str, subject: str, body: str) -> str:
-    """Record one local synthetic inbound envelope, atomically deduplicating retries."""
+DEMO_RECIPIENT = "quotes@vee.example"
+DEMO_ADDRESS = re.compile(r"[a-z0-9_+-]+(?:\.[a-z0-9_+-]+)*@(?:[a-z0-9]+(?:-[a-z0-9]+)*\.)+example")
+
+
+def _message_id(value: str) -> str:
     try:
-        message_id = str(UUID(message_id))
+        return str(UUID(value))
     except (ValueError, AttributeError, TypeError) as error:
         raise ValueError("Use a valid synthetic message identifier.") from error
+
+
+def _demo_address(value: str) -> str:
+    address = value.strip().lower()
+    if len(address) > 254 or not DEMO_ADDRESS.fullmatch(address):
+        raise ValueError("Use a fictional email address ending in .example.")
+    return address
+
+
+def _delivery(db, message_id: str):
+    row = db.execute("""
+        SELECT enquiries.state FROM enquiries
+        WHERE json_extract(state, '$.message_id') = ?
+        OR EXISTS (
+            SELECT 1 FROM json_each(enquiries.state, '$.thread') AS message
+            WHERE json_extract(message.value, '$.message_id') = ?
+        )
+    """, (message_id, message_id)).fetchone()
+    if row is None:
+        return None
+    saved = json.loads(row["state"])
+    message = next((m for m in saved["thread"] if m.get("message_id") == message_id), None)
+    return saved, message
+
+
+def _receive(path, message_id, customer, subject, body, *, envelope=None, enquiry_id=None, revision=None):
+    message_id = _message_id(message_id)
     if customer not in CUSTOMERS:
         raise ValueError("Choose a synthetic account.")
     subject = _text(subject, "a subject")
-    if len(subject) > 200:
-        raise ValueError("Limit the subject to 200 characters.")
+    if len(subject) > (204 if enquiry_id else 200):
+        raise ValueError("Limit the original subject to 200 characters.")
     body = _text(body, "the original request")
+    if envelope:
+        envelope = {**envelope, "subject": subject, "message_id": message_id, "reply_to": enquiry_id}
     with _transaction(path, write=True) as db:
-        prior = db.execute("SELECT state FROM enquiries WHERE json_extract(state,'$.message_id')=?",
-                           (message_id,)).fetchone()
+        prior = _delivery(db, message_id)
         if prior:
-            saved = json.loads(prior["state"])
-            if (saved["customer"], saved["subject"], saved["body"]) != (customer, subject, body):
-                raise ValueError("This message was already received with different content.")
-            return saved["id"]
+            saved, message = prior
+            if envelope:
+                matches = (message and message["direction"] == "inbound"
+                           and (customer, body) == (saved["customer"], message["body"])
+                           and all(message.get(key) == value for key, value in envelope.items()))
+            else:
+                matches = not message and (saved["customer"], saved["subject"], saved["body"]) == (customer, subject, body)
+            if not matches:
+                raise ValueError("This message ID was already received with different content or conversation.")
+            return saved["id"], True
+
+        if enquiry_id:
+            item = _load(db, enquiry_id)
+            expected = reply_envelope(item)
+            if any(envelope[key] != expected[key] for key in ("sender", "recipient")) or customer != expected["customer"]:
+                raise ValueError("Reply addresses and account must match the selected conversation.")
+            if subject != expected["subject"]:
+                raise ValueError("The reply subject must match the selected conversation.")
+            _apply(db, item, "simulate_reply", {"revision": revision, "body": body}, envelope)
+            return item["id"], False
+
         sequence = db.execute("SELECT coalesce(max(cast(substr(id,5) AS integer)),1042)+1 FROM enquiries").fetchone()[0]
         key = f"ENQ-{sequence}"
-        _insert_enquiry(db, key, customer, subject, body, [], "", _now(), message_id)
-        return key
+        _insert_enquiry(db, key, customer, subject, body, [], "", _now(), message_id, envelope)
+        return key, False
+
+
+def receive(path: str | Path, message_id: str, customer: str, subject: str, body: str) -> str:
+    """Record the original local intake form, atomically deduplicating retries."""
+    return _receive(path, message_id, customer, subject, body)[0]
+
+
+def receive_demo_email(
+    path: str | Path, message_id: str, customer: str, sender: str, recipient: str, subject: str, body: str,
+    *, enquiry_id: str | None = None, revision: str | None = None,
+) -> tuple[str, bool]:
+    """Persist one fictional email and its workflow effect in the same transaction."""
+    envelope = {"sender": _demo_address(sender), "recipient": _demo_address(recipient)}
+    return _receive(path, message_id, customer, subject, body, envelope=envelope, enquiry_id=enquiry_id, revision=revision)
+
+
+def reply_envelope(item: dict) -> dict[str, str]:
+    original = item["thread"][0]
+    return {"customer": item["customer"], "sender": item["sender"],
+            "recipient": original.get("recipient", DEMO_RECIPIENT), "subject": f"Re: {item['subject']}"}
+
+
+def replay_demo_email(path: str | Path, message_id: str) -> tuple[str, bool]:
+    with _transaction(path) as db:
+        prior = _delivery(db, _message_id(message_id))
+    if not prior:
+        raise KeyError(message_id)
+    item, message = prior
+    if not message or message["direction"] != "inbound":
+        raise KeyError(message_id)
+    return receive_demo_email(path, message_id, item["customer"], message["sender"], message["recipient"],
+                              message["subject"], message["body"], enquiry_id=message["reply_to"])
 
 
 def _load(db, key):
@@ -394,7 +477,7 @@ def _save_quote(db, item, action, fields, at):
     return f"Saved quotation version {version} for {quote['currency']} {quote['total']} including GST."
 
 
-def _transition(db, item, action, fields, at):
+def _transition(db, item, action, fields, at, envelope=None):
     if action not in ALLOWED[item["status"]]:
         raise ValueError("This action is unavailable at the current enquiry stage.")
     if any("price" in key or key in {"discount", "subtotal", "gst", "total"} for key in fields):
@@ -418,6 +501,11 @@ def _transition(db, item, action, fields, at):
     if action == "approve_clarification":
         item["clarification"] = _text(fields.get("body", item["clarification"]), "a clarification question")
         _record_message(item, "outbound", item["clarification"], at)
+        address = reply_envelope(item)
+        item["thread"][-1].update(
+            sender=address["recipient"], recipient=address["sender"], subject=address["subject"],
+            message_id=str(uuid4()), reply_to=item["id"],
+        )
         item["status"] = "awaiting_reply"
         return "Employee approved the clarification and recorded it in the mock mailbox."
     if action == "reject_clarification":
@@ -427,6 +515,8 @@ def _transition(db, item, action, fields, at):
     if action == "simulate_reply":
         body = _text(fields.get("body") or item["sample_reply"], "a synthetic customer reply")
         _record_message(item, "inbound", body, at)
+        if envelope:
+            item["thread"][-1].update(envelope)
         item["sample_reply"] = ""
         _investigate(item)
         return "Recorded a synthetic customer reply and rechecked the requirements."
@@ -460,17 +550,22 @@ def _transition(db, item, action, fields, at):
     return f"Employee approved quotation version {latest['version']} for {latest['currency']} {latest['total']}."
 
 
+def _apply(db, item, action, fields, envelope=None):
+    if str(fields.get("revision")) != str(item["revision"]):
+        raise ValueError("This enquiry has changed. Review the latest revision and retry.")
+    if action == "simulate_reply" and item["thread"][0].get("message_id") and not envelope:
+        raise ValueError("Record this reply in the Demo Email Inbox.")
+    at = _now()
+    message = _transition(db, item, action, fields, at, envelope)
+    item["revision"] += 1
+    db.execute("UPDATE enquiries SET revision=?,state=? WHERE id=?",
+               (item["revision"], json.dumps(item), item["id"]))
+    actor = "Mock mailbox" if action == "simulate_reply" else "Demo employee"
+    _audit(db, item, actor, action, message, at)
+    return _result(db, item)
+
+
 def act(path: str | Path, id: str, action: str, fields: dict) -> dict:
     """Apply exactly one explicitly requested transition to the displayed revision."""
     with _transaction(path, write=True) as db:
-        item = _load(db, id)
-        if str(fields.get("revision")) != str(item["revision"]):
-            raise ValueError("This enquiry has changed. Review the latest revision and retry.")
-        at = _now()
-        message = _transition(db, item, action, fields, at)
-        item["revision"] += 1
-        db.execute("UPDATE enquiries SET revision=?,state=? WHERE id=?",
-                   (item["revision"], json.dumps(item), id))
-        actor = "Mock mailbox" if action == "simulate_reply" else "Demo employee"
-        _audit(db, item, actor, action, message, at)
-        return _result(db, item)
+        return _apply(db, _load(db, id), action, fields)

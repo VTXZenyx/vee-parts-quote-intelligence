@@ -14,6 +14,19 @@ python3.12 -m venv .venv
 
 Open the loopback address on port 5050 printed by Flask. On first run the server seeds the local SQLite database at `instance/workspace.sqlite3`. Subsequent starts preserve enquiry history and decisions. Set `VEE_DATABASE` to a different filesystem path for a separate synthetic workspace. The local development server represents one demo employee. Use only on a trusted machine with synthetic records.
 
+## Try the Demo Email Inbox
+
+1. From the dashboard, select **Try sample workflow** to load a cylinder email, or **Create test email** to choose another scenario or write your own. Use addresses ending in `.example`.
+2. Select **Receive test email**. Open the original message, check the next step, and read the missing specifications and catalogue evidence.
+3. Select **Approve clarification** to add the reviewed question to the local conversation. Choose **Compose demo reply**, open **Try a reply example**, and load **Supply the missing cylinder measurements**. Select **Receive demo reply**.
+4. Review the cylinder evidence and confirm the proposed part. Prepare the quote for two cylinders and review the NZD 316.25 total, including NZD 41.25 GST. You can save changes as a new quote version before approving it.
+5. Open **Demo Email Inbox**, expand a received email in **Demo message history**, and select **Replay delivery**. VEE recognises the message ID and keeps the existing conversation.
+6. Select **Start fresh demo** to open a separate, seeded SQLite workspace. **Return to original workspace** restores the original selection. New demos are stored beside the original database in its `.demos` directory. A browser keeps its current selection across an app restart and must reload forms to continue.
+
+Choose the unavailable adapter to see a commercial hold. Choose the pressure conflict to see a technical block, then use the corrected pressure reply and reconcile it before a part can be verified. The inbox also includes exact bearing references, multiple parts, ambiguous quantities, irrelevant messages and a request to skip approval.
+
+Demo replies attach to a selected enquiry once an employee has approved a clarification. Enquiry IDs and message IDs apply within the current demo workspace. The application uses local synthetic addresses, catalogue evidence and commercial records. It supports a single local employee and uses the fixture photograph for manual inspection. Real mail, arbitrary attachment uploads, image inference, ERP stock reservations, and production authentication are outside the demo.
+
 ## Exercise an enquiry
 
 1. Open **ENQ-1042**, the Harbour Packaging cylinder request. Inspect the attached inspection note, catalogue candidates and missing specifications.

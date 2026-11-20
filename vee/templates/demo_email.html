@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% from 'components.html' import date, icon %}
+{% block title %}Demo Email Inbox{% endblock %}
+{% block content %}
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ url_for('inbox') }}">{{ icon('arrow-left',15) }} Enquiry inbox</a></nav>
+<header class="case-head demo-heading">
+  <div><h1>Demo Email Inbox</h1><p>Receive fictional customer emails, reply to a clarification, or replay a delivery. Everything stays in this local workspace.</p></div>
+  <form method="post" action="{{ url_for('start_demo') }}"><input name="csrf" type="hidden" value="{{ csrf }}"><button class="button" type="submit">Start fresh demo</button></form>
+</header>
+<div class="mail-layout">
+  <section class="panel case-section mail-composer" aria-labelledby="composer-title">
+    <h2 id="composer-title">{{ 'Compose a demo reply' if item else 'Create test email' }}</h2>
+    {% if item %}
+      <p>Replying to <a href="{{ url_for('enquiry', id=item.id) }}">{{ item.id }} · {{ item.subject }}</a>. The sender, recipient and subject are tied to this conversation.</p>
+      <details class="mail-examples"><summary>Try a reply example</summary><ul>
+        {% for key, example in reply_examples.items() %}<li><a href="{{ url_for('demo_email', reply_to=item.id, reply_example=key) }}">{{ example[0] }}</a></li>{% endfor %}
+      </ul></details>
+      <a href="{{ url_for('demo_email') }}">Compose a new email instead</a>
+    {% else %}
+      <form method="get" action="{{ url_for('demo_email') }}" class="scenario-picker">
+        <label for="scenario">Example email</label>
+        <div><select name="scenario" id="scenario" required><option value="">Choose a prepared scenario</option>
+        {% for key, scenario in scenarios.items() %}<option value="{{ key }}" {{ 'selected' if request.args.get('scenario') == key }}>{{ scenario.label }}</option>{% endfor %}</select>
+        <button type="submit" class="button">Load example</button></div>
+      </form>
+    {% endif %}
+    <form method="post" action="{{ url_for('demo_email') }}" class="mail-form">
+      <input name="csrf" type="hidden" value="{{ csrf }}">
+      {% if item %}<input name="reply_to" type="hidden" value="{{ item.id }}"><input name="revision" type="hidden" value="{{ values.revision }}">
+      <input name="customer" type="hidden" value="{{ values.customer }}">
+      {% else %}<label for="mail-account">Synthetic account</label>
+      <select name="customer" id="mail-account" required><option value="">Choose an account</option>
+        {% for account in accounts %}<option {{ 'selected' if values.customer == account }}>{{ account }}</option>{% endfor %}
+      </select>{% endif %}
+      <div class="mail-addresses">
+        <div><label for="mail-sender">From</label><input id="mail-sender" name="sender" type="email" required maxlength="254" value="{{ values.sender }}" placeholder="buyer@workshop.example" aria-describedby="address-hint" {{ 'readonly' if item }}></div>
+        <div><label for="mail-recipient">To</label><input id="mail-recipient" name="recipient" type="email" required maxlength="254" value="{{ values.recipient }}" {{ 'readonly' if item }}></div>
+      </div>
+      <p class="hint" id="address-hint">Use fictional addresses ending in <code>.example</code>.</p>
+      <label for="mail-subject">Subject</label><input id="mail-subject" name="subject" required maxlength="{{ 204 if item else 200 }}" value="{{ values.subject }}" {{ 'readonly' if item }}>
+      <label for="mail-body">Message</label><textarea id="mail-body" name="body" rows="6" maxlength="8000" required>{{ values.body }}</textarea>
+      <details class="mail-id"><summary>Message identifier</summary><p>VEE uses this identifier to recognise duplicate deliveries.</p>
+        <label for="message-id">Message ID</label><input class="mono" id="message-id" name="message_id" value="{{ values.message_id }}" readonly>
+      </details>
+      <button class="button primary" type="submit">{{ icon('mail',16) }} {{ 'Receive demo reply' if item else 'Receive test email' }}</button>
+    </form>
+  </section>
+  <div>
+    <section class="panel case-section mailbox-section" aria-labelledby="waiting-title">
+      <h2 id="waiting-title">Waiting for a customer reply</h2>
+      {% if waiting %}<ul class="mail-waiting">{% for row in waiting %}<li><a href="{{ url_for('demo_email', reply_to=row.id) }}">{{ row.subject }}</a><small>{{ row.customer }} · {{ row.id }}</small></li>{% endfor %}</ul>
+      {% else %}<p class="subtle">After you approve a clarification in an enquiry, its reply link appears here.</p>{% endif %}
+    </section>
+    <section class="panel case-section mailbox-section" aria-labelledby="deliveries-title">
+      <h2 id="deliveries-title">Demo message history <span class="count">{{ deliveries|length }}</span></h2>
+      {% if deliveries %}<ol class="mail-history">
+      {% for row, message in deliveries %}<li><details>
+        <summary><strong>{{ message.subject }}</strong><small>{{ 'Received' if message.direction == 'inbound' else 'Approved clarification' }} · {{ row.id }}</small></summary>
+        <dl class="mail-envelope"><div><dt>From</dt><dd>{{ message.sender }}</dd></div><div><dt>To</dt><dd>{{ message.recipient }}</dd></div>
+          <div><dt>Message ID</dt><dd class="mono">{{ message.message_id }}</dd></div><div><dt>Recorded</dt><dd>{{ date(message.at, true) }}</dd></div></dl>
+        <p class="message-body">{{ message.body }}</p>
+        <div class="mail-links"><a class="button compact" href="{{ url_for('enquiry', id=row.id) }}">Review enquiry</a>
+          {% if message.direction == 'inbound' %}<form method="post" action="{{ url_for('replay_email', message_id=message.message_id) }}"><input name="csrf" type="hidden" value="{{ csrf }}"><button type="submit" class="button compact">Replay delivery</button></form>{% endif %}
+        </div>
+      </details></li>{% endfor %}
+      </ol>{% else %}<p class="subtle">Receive a test email to see its envelope and enquiry link here.</p>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+"""Drive the offline demo email workflow through the employee interface."""
+
+from playwright.sync_api import Page, expect
+
+
+def exercise_demo(page: Page, address: str) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto(address)
+    page.get_by_role("link", name="Try sample workflow").press("Enter")
+    expect(page.get_by_role("heading", name="Demo Email Inbox")).to_be_visible()
+    expect(page.get_by_label("From")).to_have_value("maintenance@harbour.example")
+    page.get_by_role("button", name="Start fresh demo").click()
+    expect(page.locator(".environment")).to_contain_text("Fresh demo workspace")
+    expect(page.get_by_role("status")).to_contain_text("Fresh demo")
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+    page.get_by_role("button", name="Receive test email").click()
+    expect(page.get_by_role("heading", name="Cylinder quotation", exact=True)).to_be_visible()
+    expect(page.locator(".workflow-steps [aria-current]")).to_contain_text("Clarification")
+    expect(page.locator(".workflow-next")).to_contain_text("bore")
+    page.get_by_role("button", name="Approve clarification").click()
+    page.get_by_role("link", name="Compose demo reply").click()
+    expect(page.get_by_label("From")).to_have_value("maintenance@harbour.example")
+    page.get_by_text("Try a reply example", exact=True).press("Enter")
+    page.get_by_role("link", name="Supply the missing cylinder measurements").click()
+    page.get_by_role("button", name="Receive demo reply").click()
+    expect(page.locator(".workflow-steps [aria-current]")).to_contain_text("Verify parts")
+    expect(page.locator("#conversation li")).to_have_count(3)
+    page.get_by_role("checkbox", name="Confirm CYL-32-100-DA").check()
+    page.get_by_role("button", name="Verify match", exact=True).click()
+    page.get_by_role("button", name="Create draft quotation").click()
+    expect(page.locator("#quotation")).to_contain_text("Requested 2, quoted 2")
+    expect(page.locator("#quotation")).to_contain_text("316.25")
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.get_by_role("link", name="Enquiry inbox", exact=True).click()
+    page.get_by_role("link", name="Quotes to review").click()
+    page.get_by_role("link", name="Cylinder quotation").click()
+    page.get_by_role("button", name="Approve version 1").click()
+    expect(page.locator("#quotation")).to_contain_text("Approved")
+
+    page.get_by_role("link", name="Demo Email Inbox").click()
+    history = page.locator(".mail-history")
+    expect(history.locator("li")).to_have_count(3)
+    original = history.locator("li").filter(has=page.locator("summary strong", has_text="Cylinder quotation")).last
+    original.locator("summary").click()
+    original.get_by_role("button", name="Replay delivery").click()
+    expect(page.get_by_role("status")).to_contain_text("Duplicate delivery recognised")
+    expect(history.locator("li")).to_have_count(3)
+
+    picker = page.get_by_label("Example email")
+    picker.select_option("stock")
+    page.get_by_role("button", name="Load example").click()
+    page.get_by_role("button", name="Receive test email").click()
+    expect(page.get_by_role("heading", name="Stock or price hold")).to_be_visible()
+    expect(page.get_by_role("button", name="Create draft quotation")).to_have_count(0)
+    page.get_by_role("button", name="Return to original workspace").click()
+    expect(page.locator(".environment")).to_contain_text("Synthetic workspace")
+    expect(page.locator(".inbox-table")).not_to_contain_text("Cylinder quotation")

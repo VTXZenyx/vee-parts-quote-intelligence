@@ -13,3 +13,10 @@ Recovered the uncommitted Flask and SQLite application from the interrupted deve
 ### Full-system audit
 
 The audit reproduced the original 33-test and 51-case baseline, then added coverage for unsafe product allocation, uncertain subject requirements, pressure limits across replies and recovery of historical approvals. Technical decisions retain the reviewed specifications and provenance. A one-time upgrade reopens unsafe cached decisions with an audit event and keeps their quote history. Database write failures now explain how to recover. Long subjects wrap on small screens. The verified audit totals and commands are in [TEST_PLAN.md](TEST_PLAN.md).
+
+## V2 offline demonstration
+
+- Added a Demo Email Inbox with editable fictional envelopes, eight inbound scenarios, two reply examples and replay controls.
+- Linked replies to the selected enquiry and its current revision. Delivery, verification and approval history use the original SQLite workflow.
+- Added a separate seeded demo workspace, dashboard review queues, enquiry progress and action guidance, plus explicit requested and quoted quantities.
+- Added regression coverage for concurrent duplicates, conflicting IDs, unrelated threads, technical and commercial holds, stale forms, audit rollback, recovery and workspace preservation.
