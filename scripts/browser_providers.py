@@ -25,6 +25,7 @@ def exercise_providers(page: Page, address: str) -> None:
     link.click()
     expect(page.locator("#conversation li")).to_have_count(2)
     expect(page.locator("#findings")).to_contain_text("<c1@mail.example>")
+    page.get_by_text("Message analysis and processing options", exact=True).press("Enter")
     page.get_by_role("link", name="Read source message 2").click()
     expect(page.locator(":target")).to_have_id("customer-message-2")
     expect(page.locator(":target")).to_contain_text("Bore 32 mm")

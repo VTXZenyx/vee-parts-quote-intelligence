@@ -94,7 +94,7 @@ def commercial_hold_and_navigation(page: Page, address: str) -> None:
     expect(page.get_by_role("heading", name="Commercial hold")).to_be_visible()
     page.get_by_role("link", name="Review issues").click()
     expect(page.locator(":target")).to_have_id("evidence")
-    expect(page.locator(".issues")).to_contain_text("stock")
+    expect(page.locator("#evidence .issues")).to_contain_text("stock")
     page.get_by_text("Refresh catalogue evidence", exact=True).click()
     page.get_by_role("button", name="Refresh evidence", exact=True).click()
     expect(page.get_by_role("heading", name="Commercial hold")).to_be_visible()

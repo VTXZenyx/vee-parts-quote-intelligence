@@ -514,3 +514,16 @@ main [id]:target { scroll-margin-top: 14px; }
   .quote-table thead { display: table-header-group; }
   .totals div:last-child { color: black; }
 }
+
+.record-details { padding: 0; min-width: 0; }
+.record-details > summary { padding: 15px 20px; font-weight: 600; cursor: pointer; }
+.record-details[open] > summary { border-bottom: 1px solid #dae2de; }
+#request h3 { margin-top: 20px; }
+.case-content .record-details .panel { border: 0; box-shadow: none; }
+@media (max-width: 760px) {
+  .case-content { display: contents; }
+  .case-grid > *, .case-content > * { width: 100%; }
+  .case-content > #request { order: -3; }
+  .case-content > #quotation { order: -2; }
+  .case-grid > .action-column { order: -1; }
+}

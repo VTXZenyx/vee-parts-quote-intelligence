@@ -30,6 +30,7 @@ class PartialQuoteTests(unittest.TestCase):
         import tempfile
         from pathlib import Path
         from uuid import uuid4
+
         from vee import backup
 
         with tempfile.TemporaryDirectory() as directory:

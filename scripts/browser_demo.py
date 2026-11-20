@@ -23,8 +23,8 @@ def exercise_demo(page: Page, address: str) -> None:
     with patch("vee.store._now", return_value="2026-11-20T12:00:00+00:00"):
         page.get_by_role("button", name="Receive test email").click()
         expect(page.get_by_role("heading", name="Cylinder quotation", exact=True)).to_be_visible()
-        expect(page.locator(".workflow-steps [aria-current]")).to_contain_text("Clarification")
-        expect(page.locator(".workflow-next")).to_contain_text("bore")
+        expect(page.get_by_role("heading", name="Review clarification")).to_be_visible()
+        expect(page.locator("#request .issues")).to_contain_text("bore")
         page.get_by_role("button", name="Approve clarification").click()
         expect(page.get_by_role("link", name="Compose demo reply")).to_be_visible()
     page.get_by_role("link", name="Compose demo reply").click()
@@ -33,7 +33,7 @@ def exercise_demo(page: Page, address: str) -> None:
     page.get_by_role("link", name="Supply the missing cylinder measurements").click()
     with patch("vee.store._now", return_value="2026-11-20T12:00:01+00:00"):
         page.get_by_role("button", name="Receive demo reply").click()
-        expect(page.locator(".workflow-steps [aria-current]")).to_contain_text("Verify parts")
+        expect(page.get_by_role("heading", name="Verify catalogue match")).to_be_visible()
     expect(page.locator("#conversation li")).to_have_count(3)
     page.get_by_role("checkbox", name="Confirm CYL-32-100-DA").check()
     page.get_by_role("button", name="Verify match", exact=True).click()
@@ -91,7 +91,7 @@ def exercise_demo(page: Page, address: str) -> None:
     picker.select_option("stock")
     page.get_by_role("button", name="Load example").click()
     page.get_by_role("button", name="Receive test email").click()
-    expect(page.get_by_role("heading", name="Stock or price hold")).to_be_visible()
+    expect(page.get_by_role("heading", name="Commercial hold")).to_be_visible()
     expect(page.get_by_role("button", name="Create draft quotation")).to_have_count(0)
     page.get_by_role("button", name="Return to original workspace").click()
     expect(page.locator(".environment")).to_contain_text("Synthetic workspace")
