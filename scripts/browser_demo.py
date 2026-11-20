@@ -1,5 +1,7 @@
 """Drive the offline demo email workflow through the employee interface."""
 
+from unittest.mock import patch
+
 from playwright.sync_api import Page, expect
 
 
@@ -14,17 +16,22 @@ def exercise_demo(page: Page, address: str) -> None:
     expect(page.get_by_role("status")).to_contain_text("Fresh demo")
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
-    page.get_by_role("button", name="Receive test email").click()
-    expect(page.get_by_role("heading", name="Cylinder quotation", exact=True)).to_be_visible()
-    expect(page.locator(".workflow-steps [aria-current]")).to_contain_text("Clarification")
-    expect(page.locator(".workflow-next")).to_contain_text("bore")
-    page.get_by_role("button", name="Approve clarification").click()
+    message_id = page.get_by_label("Message ID", exact=True).input_value()
+    # Keep the original and outbound clarification in the same second to reproduce the sort tie.
+    with patch("vee.store._now", return_value="2026-11-20T12:00:00+00:00"):
+        page.get_by_role("button", name="Receive test email").click()
+        expect(page.get_by_role("heading", name="Cylinder quotation", exact=True)).to_be_visible()
+        expect(page.locator(".workflow-steps [aria-current]")).to_contain_text("Clarification")
+        expect(page.locator(".workflow-next")).to_contain_text("bore")
+        page.get_by_role("button", name="Approve clarification").click()
+        expect(page.get_by_role("link", name="Compose demo reply")).to_be_visible()
     page.get_by_role("link", name="Compose demo reply").click()
     expect(page.get_by_label("From")).to_have_value("maintenance@harbour.example")
     page.get_by_text("Try a reply example", exact=True).press("Enter")
     page.get_by_role("link", name="Supply the missing cylinder measurements").click()
-    page.get_by_role("button", name="Receive demo reply").click()
-    expect(page.locator(".workflow-steps [aria-current]")).to_contain_text("Verify parts")
+    with patch("vee.store._now", return_value="2026-11-20T12:00:01+00:00"):
+        page.get_by_role("button", name="Receive demo reply").click()
+        expect(page.locator(".workflow-steps [aria-current]")).to_contain_text("Verify parts")
     expect(page.locator("#conversation li")).to_have_count(3)
     page.get_by_role("checkbox", name="Confirm CYL-32-100-DA").check()
     page.get_by_role("button", name="Verify match", exact=True).click()
@@ -38,14 +45,43 @@ def exercise_demo(page: Page, address: str) -> None:
     page.get_by_role("button", name="Approve version 1").click()
     expect(page.locator("#quotation")).to_contain_text("Approved")
 
+    enquiry_url = page.url
+    enquiry_id = page.locator(".case-id").inner_text()
+    enquiry_records = page.locator("#conversation li, #activity li, #quotation")
+    records_before = enquiry_records.all_text_contents()
+
+    # A separate delivery with exactly the same subject must remain a distinct enquiry.
+    page.goto(address + "/demo-email?scenario=cylinder")
+    with patch("vee.store._now", return_value="2026-11-20T12:00:02+00:00"):
+        page.get_by_role("button", name="Receive test email").click()
+        expect(page.get_by_role("heading", name="Cylinder quotation", exact=True)).to_be_visible()
+    assert page.url != enquiry_url
+    page.get_by_role("link", name="Enquiry inbox", exact=True).click()
+    enquiry_rows = page.locator(".inbox-table tbody tr")
+    expect(enquiry_rows.filter(has_text="Cylinder quotation")).to_have_count(2)
+    rows_before = enquiry_rows.all_text_contents()
+
     page.get_by_role("link", name="Demo Email Inbox").click()
     history = page.locator(".mail-history")
-    expect(history.locator("li")).to_have_count(3)
-    original = history.locator("li").filter(has=page.locator("summary strong", has_text="Cylinder quotation")).last
+    messages = history.locator("li")
+    expect(messages).to_have_count(4)
+    expect(history.get_by_text("Cylinder quotation", exact=True)).to_have_count(2)
+    messages_before = messages.all_text_contents()
+    replay_form = page.locator(f'form[action="/demo-email/{message_id}/replay"]')
+    original = messages.filter(has=replay_form)
+    expect(original).to_have_count(1)
+    expect(original.locator("summary")).to_contain_text(f"Received · {enquiry_id}")
     original.locator("summary").click()
-    original.get_by_role("button", name="Replay delivery").click()
-    expect(page.get_by_role("status")).to_contain_text("Duplicate delivery recognised")
-    expect(history.locator("li")).to_have_count(3)
+    original.get_by_role("button", name="Replay delivery", exact=True).click()
+    expect(page.get_by_role("status")).to_contain_text(f"Duplicate delivery recognised for {enquiry_id}.")
+    assert messages.all_text_contents() == messages_before
+
+    page.get_by_role("link", name="Enquiry inbox", exact=True).click()
+    assert enquiry_rows.all_text_contents() == rows_before
+    page.goto(enquiry_url)
+    expect(page.locator("#quotation")).to_contain_text("Approved")
+    assert enquiry_records.all_text_contents() == records_before
+    page.get_by_role("link", name="Demo Email Inbox").click()
 
     picker = page.get_by_label("Example email")
     picker.select_option("stock")
