@@ -35,6 +35,7 @@
       <p class="message-body">{{ item.body }}</p>
       {% if item.attachments %}<div class="attachments"><h3>Attachments</h3>{% for attachment in item.attachments %}<details class="attachment"><summary>{{ icon('paperclip',15) }}{{ attachment.name }}</summary>{% if not item.thread[0].provider and attachment.name == 'inspection-fitting.webp' %}<img class="inspection-photo" src="{{ url_for('static', filename='inspection-fitting.webp') }}" alt="Synthetic inspection photo of a worn fitting on a workshop bench">{% endif %}<p class="message-body">{{ attachment.text }}</p></details>{% endfor %}</div>{% endif %}
     </section>
+    {% include 'findings.html' %}
     <section class="panel case-section" id="evidence">
       <div class="section-heading">{{ icon('list-check',20) }}<h2>Technical investigation</h2></div>
       {% for line in item.extraction.lines %}
@@ -62,8 +63,8 @@
     </section>
     <section class="panel case-section" id="conversation">
       <div class="section-heading">{{ icon('conversation',20) }}<h2>Message history</h2><span class="count">{{ item.thread|length }}</span></div>
-      <ol class="timeline">{% for message in item.thread|reverse %}<li><div class="event-top"><strong>{{ message.author }}</strong><small>{{ date(message.at, true) }}</small></div><span class="event-type">{{ 'Demo customer message' if message.direction == 'inbound' else 'Approved mock clarification' }}</span>{% if message.message_id %}<details class="message-envelope"><summary>Email details</summary><dl class="mail-envelope">
-        <div><dt>Subject</dt><dd>{{ message.subject }}</dd></div><div><dt>From</dt><dd>{{ message.sender }}</dd></div><div><dt>To</dt><dd>{{ message.recipient }}</dd></div><div><dt>Message ID</dt><dd class="mono">{{ message.message_id }}</dd></div>
+      <ol class="timeline">{% for message in item.thread|reverse %}<li><div class="event-top"><strong>{{ message.author }}</strong><small>{{ date(message.at, true) }}</small></div><span class="event-type">{{ 'Demo customer message' if message.direction == 'inbound' else 'Approved mock clarification' }}</span>{% if message.message_id or message.mid %}<details class="message-envelope"><summary>Email details</summary><dl class="mail-envelope">
+        <div><dt>Subject</dt><dd>{{ message.subject }}</dd></div><div><dt>From</dt><dd>{{ message.sender }}</dd></div><div><dt>To</dt><dd>{{ message.recipient }}</dd></div><div><dt>Message ID</dt><dd class="mono">{{ message.message_id or message.mid }}</dd></div>
       </dl></details>{% endif %}<p class="message-body">{{ message.body }}</p></li>{% endfor %}</ol>
     </section>
     <section class="panel case-section" id="activity">

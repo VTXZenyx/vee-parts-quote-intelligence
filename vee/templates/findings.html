@@ -1,0 +1,46 @@
+{% from 'components.html' import identity %}
+{% set methods = {'mock':'Mock model · offline simulation','deterministic':'Deterministic extraction','openai':'OpenAI model output'} %}
+<section class="panel case-section" id="findings" aria-labelledby="findings-heading">
+  <h2 id="findings-heading">Customer requirements</h2>
+  {% if inbound|length > 1 %}<nav class="mail-links" aria-label="Source messages">
+    {% for message in inbound %}<a href="{{ url_for('enquiry', id=item.id, source=loop.index, _anchor='findings') }}" {% if source == loop.index|string %}aria-current="true"{% endif %}>Customer message {{ loop.index }}</a>{% endfor %}
+  </nav>{% endif %}
+  {% if advisory %}
+  <p><strong>{{ methods[advisory.method] }}</strong>{% if advisory.method == 'openai' %} · {{ advisory.model }}{% endif %}</p>
+  <p class="hint">Source {{ source }} · {{ advisory.source }}. Check the customer's words below before using a finding.</p>
+  {% if advisory.notice %}<p class="issues">{{ advisory.notice }}</p>{% endif %}
+  {% for number, rows in advisory.findings|groupby('item') %}<details class="candidate" {% if loop.first %}open{% endif %}>
+    <summary><strong>Requested item {{ number }}</strong></summary>
+    <div class="candidate-body"><dl class="findings-list">
+      {% for row in rows %}<div><dt>{{ row.kind|capitalize }} · {{ {'stated':'Customer wording','inferred':'Possible interpretation','missing':'Needs clarification','unverified':'Unverified','conflicting':'Conflict','approximate':'Approximate'}[row.status] }}</dt>
+        <dd>{{ row.value }}{% if row.value != row.evidence %}<small>From “{{ row.evidence }}”</small>{% endif %}</dd>
+      </div>{% endfor %}
+    </dl></div></details>{% else %}<p>No supported requirements identified. Review the original email.</p>{% endfor %}
+  {% for index, review in advisory.get('reviews', {}).items() %}<p><strong>Employee reviewed · {{ advisory.findings[index|int].kind }}</strong><br>
+    {{ review.original }}{% if review.decision == 'correct' %} → {{ review.replacement }} (awaiting customer reconciliation at the time of review){% endif %} · {{ review.reason }}</p>{% endfor %}
+  {% if item.correction_hold %}<div class="issues"><strong>Quotation blocked pending customer confirmation</strong>
+    {% for hold in item.correction_hold %}<p>Message {{ hold.source }} · {{ hold.replacement }}</p>{% endfor %}</div>{% endif %}
+  <details class="mail-examples no-print"><summary>Process or review this message</summary>
+    <form class="mail-form" method="post" action="{{ url_for('review_findings', id=item.id) }}">
+      {{ identity(item, csrf) }}<input name="source" type="hidden" value="{{ source }}">
+      <label for="processing-mode">Processing method</label>
+      <select id="processing-mode" name="mode"><option value="deterministic">Deterministic extraction (local)</option>
+        <option value="mock">Mock model (local demonstration)</option>
+        {% if live_enabled %}<option value="openai">Send this synthetic message to OpenAI</option>{% endif %}
+      </select><p class="hint">{{ 'Selecting OpenAI sends the subject and body to the configured model and may incur a charge.' if live_enabled else 'Live AI is disabled. Both available methods run locally.' }}</p>
+      <button class="button">Process selected message</button>
+    </form>
+    {% if advisory.findings %}<form class="mail-form" method="post" action="{{ url_for('review_findings', id=item.id, operation='review') }}">
+      {{ identity(item, csrf) }}<input name="source" type="hidden" value="{{ source }}">
+      <label for="finding">Finding to review</label><select id="finding" name="finding">{% for row in advisory.findings %}
+        <option value="{{ loop.index0 }}">Item {{ row.item }} · {{ row.kind }} · {{ row.value|truncate(65) }}</option>{% endfor %}</select>
+      <label for="decision">Review decision</label><select id="decision" name="decision">
+        <option value="confirm">Confirm this reading of the message</option><option value="correct">Flag a correction and reopen technical review</option></select>
+      <label for="replacement">Proposed correction (required for a correction)</label><input id="replacement" name="replacement" maxlength="8000">
+      <label for="review-reason">Evidence or reason</label><input id="review-reason" name="reason" maxlength="8000" required>
+      <p class="hint">A correction blocks the quotation until a new, complete customer revision is reconciled. Technical match and quote approval each require a separate employee decision.</p>
+      <button class="button">Record finding review</button>
+    </form>{% endif %}
+  </details>
+  {% else %}<p>Read the original message and continue with the technical investigation.</p>{% endif %}
+</section>

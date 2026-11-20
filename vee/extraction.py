@@ -256,11 +256,15 @@ def extract(
     mode: str = "deterministic",
     *,
     provider: Provider | None = None,
+    subject: str = "",
 ) -> dict:
-    if not isinstance(source, str) or not source.strip() or len(source) > 8205:
-        raise ValueError("Select one non-empty message of up to 8,205 characters.")
+    if not isinstance(subject, str) or len(subject) > 204:
+        raise ValueError("Select one subject of up to 204 characters.")
+    if not isinstance(source, str) or not source.strip() or len(source) > 8000:
+        raise ValueError("Select one non-empty message of up to 8,000 characters.")
     if mode not in {"deterministic", "mock", "openai"}:
         raise ValueError("Choose an available processing method.")
+    model_input = subject + "\n" + source if subject and mode == "openai" else source
     notice = ""
     model = ""
     if mode == "openai" and provider is None and not live_enabled():
@@ -270,7 +274,7 @@ def extract(
             if provider is None and mode == "mock":
                 provider = MockProvider()
             if provider is not None:
-                model, payload = provider.model, provider.generate(source)
+                model, payload = provider.model, provider.generate(model_input)
             else:
                 sdk = import_module("openai")
                 model = os.environ.get("VEE_AI_MODEL", "gpt-4.1-mini")
@@ -280,13 +284,13 @@ def extract(
                     timeout=15.0,
                     max_retries=0,
                 ) as client:
-                    payload = OpenAIProvider(client, model).generate(source)
+                    payload = OpenAIProvider(client, model).generate(model_input)
             return {
                 "source": source_id,
                 "method": mode,
                 "model": model,
                 "notice": "",
-                "findings": validate(payload, source),
+                "findings": validate(payload, model_input),
             }
         except Exception as error:  # noqa: BLE001 - isolate optional third-party provider failures.
             reasons = {

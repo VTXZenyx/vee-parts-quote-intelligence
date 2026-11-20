@@ -1,0 +1,35 @@
+<section id="provider-mail" class="panel case-section provider-mail" aria-labelledby="provider-title">
+  <h2 id="provider-title">Import a provider email</h2>
+  <p>Choose a fictional message from Gmail or Outlook. To try an early reply, import the cylinder dimensions before the Harbour cylinder request.</p>
+  <form class="mail-form" method="post" action="{{ url_for('provider_delivery') }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label for="fixture">Simulated provider message</label>
+    <select id="fixture" name="fixture" required>{% for key, fixture in fixtures.items() %}
+      <option value="{{ key }}">{{ fixture.provider|capitalize }} · {{ fixture.label }}</option>{% endfor %}
+    </select>
+    <button class="button primary" type="submit">Import message</button>
+  </form>
+  {% if receipts %}<h3>Provider deliveries</h3>
+  {% for row in receipts %}{% set m = row.message %}
+  <details class="candidate" data-provider="{{ m.provider }}" data-provider-id="{{ m.mid }}">
+    <summary><span><strong>{{ m.subject }}</strong><small>{{ row.status|capitalize }} · {{ m.provider|capitalize }} · {{ m.sender }}</small></span></summary>
+    <div class="candidate-body">
+      {% if row.reason %}<p class="issues">{{ row.reason }}</p>{% endif %}
+      <dl class="mail-envelope">
+        {% for label, value in [('Provider message',m.mid),('Conversation',m.thread),('Internet message ID',m.internet),('Reply parent',m.parent),('References',m.references|join(' ')),('Recipient',m.recipient),('Received (UTC)',m.at)] %}
+          {% if value %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endif %}
+        {% endfor %}
+      </dl>
+      <p class="message-body">{{ m.body }}</p>
+      {% for file in m.attachments %}<p>{{ file.name }} · {{ file.type }} · {{ file.size }} bytes · Metadata only</p>{% endfor %}
+      <details><summary>Original provider message</summary><pre class="source-json">{{ row.raw }}</pre></details>
+      <div class="mail-links">
+        {% if row.enquiry_id %}<a class="button compact" href="{{ url_for('enquiry', id=row.enquiry_id) }}">Open {{ row.enquiry_id }}</a>{% endif %}
+        {% for op in (['replay','retry'] if row.status == 'held' else ['replay']) %}
+        <form method="post" action="{{ url_for('provider_delivery', receipt=row.id, operation=op) }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="button compact">{{ 'Retry association' if op == 'retry' else 'Replay provider delivery' }}</button>
+        </form>{% endfor %}
+      </div>
+    </div>
+  </details>{% endfor %}{% endif %}
+</section>

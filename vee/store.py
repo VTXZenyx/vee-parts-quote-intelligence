@@ -224,6 +224,9 @@ def _investigate(item):
             fields = ", ".join(omitted)
             _require_review(analysis, f"Earlier specifications need explicit confirmation: {fields}.",
                             f"Please include the confirmed {fields} in the revised request.")
+    if item.get("correction_hold"):
+        _require_review(analysis, "An employee has flagged a requirement for correction.",
+                        "Please supply a complete 'Revised request:' confirming all products, quantities and specifications.")
     item["extraction"] = analysis
     item["candidates"] = [c for line in analysis["lines"] for c in line["candidates"]]
     if analysis["ready"]:
@@ -527,7 +530,11 @@ def _transition(db, item, action, fields, at, envelope=None):
         reason = _text(fields.get("reason"), "the reason for accepting the complete revised request")
         if not item.get("revised_request"):
             raise ValueError("A customer reply must explicitly provide the full revised request.")
-        item["basis_inbound"] = sum(entry["direction"] == "inbound" for entry in item["thread"]) - 1
+        inbound = sum(entry["direction"] == "inbound" for entry in item["thread"])
+        if any(inbound <= hold["after"] for hold in item.get("correction_hold", [])):
+            raise ValueError("Obtain a new complete customer revision after the employee correction.")
+        item.pop("correction_hold", None)
+        item["basis_inbound"] = inbound - 1
         _investigate(item)
         return f"Accepted revised requirements from customer message {item['basis_inbound'] + 1}. {reason}"
     if action == "save_clarification":

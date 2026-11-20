@@ -191,7 +191,11 @@ def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None
     version = 0
     quote_reference = ""
     approved = False
+    workflow_actions = []
     for _, action, detail in events:
+        if action in {"extract_findings", "review_finding"}:
+            continue
+        workflow_actions.append(action)
         if action == "recheck_requirements":
             approved = False
         elif approved:
@@ -224,7 +228,7 @@ def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None
         "awaiting_reply": {"approve_clarification"},
     }
     status = state["status"]
-    if status in final_actions and events[-1][1] not in final_actions[status]:
+    if status in final_actions and workflow_actions[-1] not in final_actions[status]:
         raise ValueError("The current state lacks its corresponding audit decision.")
     if approved != (status == "approved") or (
         status in {"rejected", "draft_quote"} and not version

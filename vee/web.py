@@ -22,7 +22,8 @@ from flask import (
 from werkzeug.exceptions import Forbidden
 from werkzeug.wrappers import Response
 
-from vee import demo, store
+from vee import demo, findings, provider_mail, store
+from vee.extraction import live_enabled
 
 WORKSPACE_COOKIE = "vee_demo_workspace"
 
@@ -174,8 +175,31 @@ def create_app(database: Path | str | None = None) -> Flask:
         return render_template(
             "demo_email.html", values=values, item=item, scenarios=demo.SCENARIOS, reply_examples=demo.REPLY_EXAMPLES,
             deliveries=deliveries, waiting=[row for row in rows if row["status"] == "awaiting_reply"],
-            accounts=store.CUSTOMERS,
+            accounts=store.CUSTOMERS, fixtures=provider_mail.FIXTURES, receipts=provider_mail.deliveries(g.database),
         ), status
+
+    @app.post("/demo-email/providers")
+    @app.post("/demo-email/providers/<int:receipt>/<operation>")
+    def provider_delivery(receipt: int | None = None, operation: str = "import") -> Response:
+        try:
+            if receipt is None:
+                fixture = provider_mail.FIXTURES.get(request.form.get("fixture", ""))
+                if not fixture:
+                    raise ValueError("Select a Gmail or Outlook fixture.")
+                result = provider_mail.ingest(g.database, fixture["provider"], fixture["message"])
+            elif operation == "retry":
+                result = provider_mail.retry(g.database, receipt)
+            elif operation == "replay":
+                result = provider_mail.replay(g.database, receipt)
+            else:
+                abort(404)
+        except KeyError:
+            abort(404)
+        except ValueError as error:
+            flash("Rejected. " + str(error), "error")
+        else:
+            flash(f"{result['status'].capitalize()} delivery. {result['reason']}", "success")
+        return redirect(url_for("demo_email", _anchor="provider-mail"), code=303)
 
     @app.post("/demo-email/<message_id>/replay")
     def replay_email(message_id: str) -> Response:
@@ -217,7 +241,32 @@ def create_app(database: Path | str | None = None) -> Flask:
             item = store.detail(g.database, id)
         except KeyError:
             abort(404)
-        return render_template("detail.html", item=item)
+        try:
+            source, advisory = findings.displayed(item, request.args.get("source"))
+        except ValueError as error:
+            flash(str(error), "error")
+            source, advisory = "", None
+        return render_template("detail.html", item=item, advisory=advisory, source=source,
+                               inbound=findings.sources(item), live_enabled=live_enabled())
+
+    @app.post("/enquiries/<id>/findings")
+    @app.post("/enquiries/<id>/findings/<operation>")
+    def review_findings(id: str, operation: str = "process") -> Response:
+        fields = request.form.to_dict()
+        try:
+            if operation == "process":
+                findings.process(g.database, id, fields)
+            elif operation == "review":
+                findings.review(g.database, id, fields)
+            else:
+                abort(404)
+        except KeyError:
+            abort(404)
+        except ValueError as error:
+            flash(str(error), "error")
+        else:
+            flash("Findings saved to enquiry history.", "success")
+        return redirect(url_for("enquiry", id=id, source=fields.get("source"), _anchor="findings"), code=303)
 
     @app.post("/enquiries/<id>/actions")
     def perform(id: str) -> Response:
