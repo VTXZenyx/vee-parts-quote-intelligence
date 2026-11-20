@@ -11,12 +11,13 @@
     <button name="action" value="save_clarification" class="button">Save draft</button></div>
   </form>{{ reject(item, csrf, 'reject_clarification', 'Reject clarification draft') }}
 {% elif item.status == 'awaiting_reply' %}
-  <h2>Awaiting customer reply</h2><p>Record a synthetic response to continue the investigation.</p>
-  <form action="{{ post }}" method="post">{{ identity(item, csrf) }}
+  <h2>Awaiting customer reply</h2><p>Reply to the approved clarification in the demo inbox to continue the investigation.</p>
+  <a class="button primary" href="{{ url_for('demo_email', reply_to=item.id) }}">{{ icon('mail',16) }} Compose demo reply</a>
+  {% if not item.thread[0].message_id %}<form action="{{ post }}" method="post">{{ identity(item, csrf) }}
     <label for="reply">Synthetic customer reply</label><textarea id="reply" name="body" rows="5" maxlength="8000" required>{{ item.sample_reply }}</textarea>
     <p class="hint">For a complete replacement, start with “Revised request:” and list every product and quantity.</p>
     <button class="button primary" name="action" value="simulate_reply">{{ icon('mail',16) }}Record mock reply</button>
-  </form>
+  </form>{% endif %}
 {% elif item.status == 'needs_verification' %}
   <h2>Verify catalogue match</h2><p>Review the source specifications and confirm each proposed product.</p>
   <form action="{{ post }}" method="post">{{ identity(item, csrf) }}

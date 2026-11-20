@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'stages.html' import stage_copy %}
 {% from 'components.html' import icon, date, status, identity, reject %}
 {% block title %}{{ item.id }} · {{ item.subject }}{% endblock %}
 {% block content %}
@@ -8,12 +9,29 @@
   <h1>{{ item.subject }}</h1>
   <div class="case-meta"><span>{{ icon('building',15) }}{{ item.customer }}</span><span>{{ icon('calendar',15) }}Received {{ date(item.received_at, true) }}</span></div>
 </header>
+{% set next_step = stage_copy[item.status] %}
+<section class="panel case-section workflow-summary no-print" aria-labelledby="workflow-title">
+  <h2 id="workflow-title">Enquiry progress</h2>
+  {% set states = [
+    ('Request received', 'complete'),
+    ('Clarification', 'current' if item.status in ['needs_clarification','awaiting_reply'] else 'complete' if item.thread|length > 1 else 'optional'),
+    (('Resolve stock or price' if item.status == 'commercial_hold' else 'Verify parts'), 'current' if item.status in ['needs_verification','commercial_hold'] else 'complete' if item.selected_skus else 'pending'),
+    ('Prepare quotation', 'current' if item.status == 'verified' else 'complete' if item.status in ['draft_quote','rejected','approved'] else 'pending'),
+    ('Decide on quotation', 'current' if item.status in ['draft_quote','rejected'] else 'complete' if item.status == 'approved' else 'pending')
+  ] %}
+  <ol class="workflow-steps">{% for label, step in states %}<li class="step-{{ step }}"{% if step == 'current' %} aria-current="step"{% endif %}><span>{{ label }}</span><small>{{ {'complete':'Complete','current':'Current','optional':'Optional','pending':'Ahead'}[step] }}</small></li>{% endfor %}</ol>
+  <div class="workflow-next"><div><h3>{{ next_step[0] }}</h3><p>{{ next_step[1] }}</p>
+    {% if item.status == 'needs_clarification' and item.extraction.questions %}<p class="hint">{{ item.extraction.questions[0] }}</p>{% endif %}</div>
+    <a class="button compact" href="{{ next_step[3] }}">{{ next_step[2] }} {{ icon('arrow-right',15) }}</a>
+  </div>
+</section>
 <div class="case-grid">
   <div class="case-content">
     {% if item.quotes %}{% include 'quotation.html' %}{% endif %}
     <section class="panel case-section" id="request">
       <div class="section-heading">{{ icon('mail',20) }}<h2>Customer request</h2></div>
       <div class="message-top"><strong>{{ item.customer }}</strong><span>{{ item.sender }}</span></div>
+      {% if item.thread[0].recipient %}<small class="message-address">To {{ item.thread[0].recipient }} · Demo email</small>{% endif %}
       <p class="message-body">{{ item.body }}</p>
       {% if item.attachments %}<div class="attachments"><h3>Attachments</h3>{% for attachment in item.attachments %}<details class="attachment"><summary>{{ icon('paperclip',15) }}{{ attachment.name }}</summary>{% if attachment.name == 'inspection-fitting.webp' %}<img class="inspection-photo" src="{{ url_for('static', filename='inspection-fitting.webp') }}" alt="Synthetic inspection photo of a worn fitting on a workshop bench">{% endif %}<p class="message-body">{{ attachment.text }}</p></details>{% endfor %}</div>{% endif %}
     </section>
@@ -27,11 +45,12 @@
           {% for name, value in line.attributes.items() %}<div><dt>{{ name|replace('_',' ')|capitalize }}</dt><dd>{{ value }}</dd></div>{% endfor %}
         </dl>{% endif %}
         {% if line.issues %}<div class="issues"><h4>{{ icon('alert',16) }} Outstanding issues</h4><ul>{% for issue in line.issues %}<li>{{ issue }}</li>{% endfor %}</ul></div>{% endif %}
-        <h4 class="candidate-heading">Catalogue candidates <span class="count">{{ line.candidates|length }}</span></h4>
+        <h4 class="candidate-heading">Suggested catalogue parts <span class="count">{{ line.candidates|length }}</span></h4>
         {% for candidate in line.candidates %}<details class="candidate" {% if item.status == 'needs_verification' %}open{% endif %}>
           <summary><span><strong>{{ candidate.name }}</strong><small class="mono">{{ candidate.sku }}</small></span>{{ icon('chevron',16) }}</summary>
           <div class="candidate-body">
             <span class="source">{{ icon('book',14) }}{{ candidate.source }}</span>
+            <p class="hint">{{ 'Employee verified' if candidate.sku == line.sku and candidate.sku in item.selected_skus else 'Catalogue suggestion · requires employee verification' }}</p>
             {% if candidate.evidence %}<ul class="evidence-list">{% for evidence in candidate.evidence %}<li>{{ evidence }}</li>{% endfor %}</ul>{% endif %}
             {% if candidate.specs %}<dl class="attributes small">{% for key, value in candidate.specs.items() %}<div><dt>{{ key|replace('_',' ')|capitalize }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl>{% endif %}
             <div class="commercial"><div><small>Stock on hand</small><strong>{{ candidate.stock if candidate.stock is not none else 'Unconfirmed' }}</strong></div><div><small>Account price</small><strong>{% if candidate.unit_price is not none %}NZD {{ candidate.unit_price }}{% else %}Unconfirmed{% endif %}</strong></div><div><small>Availability</small><strong>{{ candidate.availability or 'Unconfirmed' }}</strong></div><div><small>Delivery</small><strong>{{ candidate.delivery or 'Unconfirmed' }}</strong></div></div>
@@ -43,7 +62,9 @@
     </section>
     <section class="panel case-section" id="conversation">
       <div class="section-heading">{{ icon('conversation',20) }}<h2>Message history</h2><span class="count">{{ item.thread|length }}</span></div>
-      <ol class="timeline">{% for message in item.thread|reverse %}<li><div class="event-top"><strong>{{ message.author }}</strong><small>{{ date(message.at, true) }}</small></div><span class="event-type">{{ 'Customer message' if message.direction == 'inbound' else 'Approved mock clarification' }}</span><p class="message-body">{{ message.body }}</p></li>{% endfor %}</ol>
+      <ol class="timeline">{% for message in item.thread|reverse %}<li><div class="event-top"><strong>{{ message.author }}</strong><small>{{ date(message.at, true) }}</small></div><span class="event-type">{{ 'Demo customer message' if message.direction == 'inbound' else 'Approved mock clarification' }}</span>{% if message.message_id %}<details class="message-envelope"><summary>Email details</summary><dl class="mail-envelope">
+        <div><dt>Subject</dt><dd>{{ message.subject }}</dd></div><div><dt>From</dt><dd>{{ message.sender }}</dd></div><div><dt>To</dt><dd>{{ message.recipient }}</dd></div><div><dt>Message ID</dt><dd class="mono">{{ message.message_id }}</dd></div>
+      </dl></details>{% endif %}<p class="message-body">{{ message.body }}</p></li>{% endfor %}</ol>
     </section>
     <section class="panel case-section" id="activity">
       <div class="section-heading">{{ icon('history',20) }}<h2>Audit history</h2></div>
@@ -51,7 +72,7 @@
     </section>
   </div>
   <aside class="action-column">
-    <section class="panel action-panel">
+    <section class="panel action-panel" id="employee-action">
       <div class="action-label">{{ icon('workflow',17) }} Employee review</div>
       {% include 'actions.html' %}
     </section>

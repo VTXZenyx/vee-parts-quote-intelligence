@@ -275,3 +275,114 @@ details form { margin-top: 12px; }
 .intake{max-width:46rem;margin:1rem auto}.intake select{font:inherit;padding:.55rem;width:100%}.intake form{margin-top:1.25rem}
 
 .inspection-photo{display:block;width:min(100%,32rem);height:auto;margin:.75rem 0}
+
+.workspace-nav,.workspace-nav a,.workspace-switch,.hero-actions,.demo-heading,.workflow-next,.mail-links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.workspace-nav a { font-size: .83rem; font-weight: 650; }
+.workspace-nav [aria-current] { color: #2e6952; text-decoration: underline; text-underline-offset: 4px; }
+.workspace-switch {
+  justify-content: space-between;
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  background: #eaf2e9;
+  border: 1px solid #d1dece;
+  border-radius: 9px;
+  font-size: .83rem;
+}
+.hero-actions { flex-wrap: wrap; margin-top: 5px; }
+.hero-actions .hero-primary { background: #e8f1dc; border-color: #e8f1dc; color: #173a29; }
+.hero-actions .hero-secondary { background: #174434; border-color: #809e88; color: white; }
+.hero-actions .button:hover { background: #fff; color: #173a29; }
+.metrics { grid-template-columns: repeat(5,minmax(0,1fr)); }
+.row-open a { display: inline-flex; gap: 5px; align-items: center; font-size: .77rem; font-weight: 620; }
+.workflow-summary h2 { font-size: 1.06rem; }
+.workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(5,minmax(0,1fr));
+  gap: 7px;
+  list-style: none;
+  padding: 0;
+  margin: 14px 0;
+}
+.workflow-steps li {
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .8rem;
+}
+.workflow-steps li small { display: block; }
+.workflow-steps .step-current { background: #123b33; color: white; border-color: #123b33; }
+.workflow-steps .step-complete { background: #edf4e9; color: #24533f; }
+.workflow-next { justify-content: space-between; }
+.workflow-next h3 { margin: 0; font-size: .95rem; }
+.workflow-next p { margin: 4px 0 0; font-size: .85rem; }
+.workflow-next .button { flex: none; }
+.demo-heading { justify-content: space-between; }
+.demo-heading h1 { margin: 0 0 8px; }
+.demo-heading p { margin: 0; max-width: 65ch; }
+.demo-heading form { flex: none; }
+.mail-layout {
+  display: grid;
+  grid-template-columns: minmax(0,1.18fr) minmax(0,1fr);
+  align-items: start;
+  gap: 18px;
+}
+.mail-layout h2 { font-size: 1.12rem; margin: 0 0 12px; }
+.mail-layout p { font-size: .9rem; }
+.mail-composer label { display: block; margin-bottom: 5px; font-size: .82rem; font-weight: 650; }
+.mail-composer input,.mail-composer select,.mail-composer textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #afc5b5;
+  border-radius: 6px;
+  padding: 9px 10px;
+  background: #fafcf9;
+  color: var(--ink);
+  font: inherit;
+}
+.mail-composer textarea { resize: vertical; }
+.mail-composer [readonly] { background: #eef3ee; }
+.mail-form { margin-top: 16px; display: grid; grid-template-columns: minmax(0,1fr); gap: 7px; }
+.mail-form .button { justify-self: start; margin-top: 6px; }
+.mail-form .hint { margin: 0 0 6px; }
+.mail-addresses { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.scenario-picker { padding: 12px; background: #edf4e9; border-radius: 8px; }
+.scenario-picker div { display: flex; gap: 8px; align-items: center; }
+.scenario-picker button { flex: none; }
+.mail-id { font-size: .82rem; }
+.mail-id p { margin: 6px 0; }
+.mail-id input { font-size: .77rem; }
+.mail-examples { margin: 12px 0; }
+.mail-examples a,.mail-waiting a { text-decoration: underline; text-underline-offset: 3px; }
+.mail-history,.mail-waiting { list-style: none; padding: 0; margin: 0; }
+.mail-history li,.mail-waiting li { padding: 11px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.mail-history summary small,.mail-waiting small { display: block; margin: 4px 0 0; color: var(--muted); }
+.mail-envelope { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 12px 0; font-size: .79rem; }
+.mail-envelope dt { color: var(--muted); }
+.mail-envelope dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.mail-links { flex-wrap: wrap; }
+.message-address,.message-envelope { color: var(--muted); font-size: .81rem; overflow-wrap: anywhere; }
+@media (max-width: 880px) {
+  .metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .row-open a span { display: none; }
+}
+@media (max-width: 760px) {
+  .mail-layout { grid-template-columns: minmax(0,1fr); }
+  .hero-actions .button { font-size: .79rem; }
+  .workspace-nav { flex-wrap: wrap; justify-content: flex-end; gap: 4px 12px; }
+}
+@media (max-width: 570px) {
+  .metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .hero-actions { gap: 6px; }
+  .workflow-steps { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .workflow-next,.workspace-switch,.demo-heading { align-items: flex-start; flex-direction: column; }
+  .mail-addresses,.mail-envelope { grid-template-columns: minmax(0,1fr); }
+  .scenario-picker div { flex-wrap: wrap; }
+}
+
+.workflow-summary { margin-bottom: 16px; }
+.mailbox-section + .mailbox-section { margin-top: 16px; }

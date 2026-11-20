@@ -85,3 +85,19 @@ Review reproduced incorrect eligibility when technical conditions appeared only 
 The last independent review found that subject matching could accept `500 bar` inside `0.500 bar`. The matcher now requires a complete measurement. Startup also rechecks earlier approvals and records a new review event where necessary. The original quote and approval history remain available.
 
 The focused command `.venv/bin/python -m unittest tests.test_intake tests.test_store tests.test_backup -q` passed 37 tests after the fix. Ruff, mypy and `git diff --check` passed. A separate upgrade drill created an incorrect approval with commit `6334db9`, then confirmed that the updated code reopened the enquiry and preserved its audit and quote history through backup, restore and restart. The existing full-suite, evaluation and Chromium results above were recorded before this narrow fix.
+
+## V2 offline email and employee workflow
+
+Run the existing checks from the repository root:
+
+```sh
+.venv/bin/ruff check vee tests evaluation scripts
+.venv/bin/mypy --check-untyped-defs vee evaluation
+.venv/bin/python -m unittest discover -v
+.venv/bin/python -m evaluation.run
+.venv/bin/python -m scripts.browser_smoke
+```
+
+`tests/test_demo_mail.py` checks envelope validation, concurrent idempotent delivery, thread and address binding, stale revisions, replay after a state change, clarification and approval gates, revised pressure, ambiguous quantities, unavailable stock, database rollback, backup, restart and workspace isolation. `scripts/browser_demo.py` drives the cylinder email through clarification, a reply, employee review and NZD 316.25 quote approval. It checks duplicate replay, the unavailable adapter hold, isolated workspace return, and narrow-screen interactions. The V1 browser cases still cover direct intake, quotation versions, responsive overflow and A4 printing.
+
+The V2 local run passed 54 automated tests, all 61 synthetic evaluation cases and all nine labelled quotation totals. Ruff, mypy, dependency consistency and the live Chromium smoke test passed. Desktop dashboard and inbox layouts and the mobile enquiry view were visually inspected.
