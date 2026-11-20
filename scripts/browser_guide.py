@@ -3,8 +3,8 @@
 from playwright.sync_api import Page, expect
 
 
-def exercise_guide(page: Page, address: str) -> None:
-    page.set_viewport_size({"width": 390, "height": 844})
+def exercise_guide(page: Page, address: str, width: int) -> None:
+    page.set_viewport_size({"width": width, "height": 844})
     page.goto(address)
     original_rows = page.locator(".inbox-table tbody tr").all_text_contents()
     page.get_by_role("button", name="Start guided demo").press("Enter")
@@ -26,6 +26,8 @@ def exercise_guide(page: Page, address: str) -> None:
     expect(page.locator("#quotation")).to_contain_text("316.25")
     expect(page.locator("#quotation")).to_contain_text("41.25")
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.get_by_role("link", name="Go to employee review").click()
+    expect(page.locator(":target")).to_have_id("employee-action")
     page.get_by_role("button", name="Approve version 1").click()
     expect(page.locator("#guide")).to_contain_text("Guided demo complete")
     page.locator("#guide").get_by_role("link", name="Inspect audit history").click()

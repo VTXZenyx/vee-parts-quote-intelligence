@@ -22,3 +22,8 @@ def exercise_dashboard(page: Page, address: str) -> None:
     expect(blockers).to_have_attribute("aria-current", "true")
     page.get_by_role("link", name="Clear filters").click()
     expect(page.locator(".inbox-table tbody tr")).to_have_count(6)
+    response = page.goto(address + "/enquiries/unknown")
+    assert response is not None and response.status == 404
+    expect(page.get_by_role("heading", name="Page unavailable")).to_be_visible()
+    page.get_by_role("link", name="Enquiry inbox", exact=True).press("Enter")
+    expect(page.locator(".inbox-table tbody tr")).to_have_count(6)

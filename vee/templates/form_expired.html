@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Open a fresh form{% endblock %}
 {% block content %}
-<section class="panel case-section">
+<section class="panel case-section error-state">
 <h1>Open a fresh form</h1>
 <p>This submission could not be verified. This can happen after switching demo workspaces or restarting the app. Open the current enquiry or email composer and try again.</p>
 <div class="mail-links"><a class="button primary" href="{{ url_for('inbox') }}">Enquiry inbox</a><a class="button" href="{{ url_for('demo_email') }}">Demo Email Inbox</a></div>

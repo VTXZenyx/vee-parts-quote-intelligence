@@ -74,6 +74,10 @@ def create_app(database: Path | str | None = None) -> Flask:
         app.logger.error("Workspace database operation failed (%s)", getattr(error, "sqlite_errorname", "SQLITE_ERROR"))
         return render_template("unavailable.html"), 503
 
+    @app.errorhandler(404)
+    def page_missing(_error: Exception) -> tuple[str, int]:
+        return render_template("not_found.html"), 404
+
     @app.errorhandler(403)
     def expired_form(error: Forbidden) -> tuple[str, int]:
         return render_template("form_expired.html"), error.code or 403

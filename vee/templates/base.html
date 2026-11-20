@@ -18,7 +18,7 @@
       <span class="brandname">VEE</span><span class="product">Parts &amp; Quote Intelligence</span>
     </a>
     <nav class="workspace-nav" aria-label="Workspace">
-      <a href="{{ url_for('inbox') }}" {% if request.endpoint == 'inbox' %}aria-current="page"{% endif %}>Enquiries</a>
+      <a href="{{ url_for('inbox') }}" {% if request.endpoint in ('inbox', 'enquiry', 'new_enquiry') %}aria-current="page"{% endif %}>Enquiries</a>
       <a href="{{ url_for('demo_email') }}" {% if request.endpoint in ('demo_email', 'replay_email') %}aria-current="page"{% endif %}>{{ icon('mail', 16) }} Demo Email Inbox</a>
       <span class="environment"><span></span>{{ 'Fresh demo workspace' if demo_workspace else 'Synthetic workspace' }}</span>
     </nav>
@@ -29,7 +29,7 @@
   {% for category, message in messages %}<div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ icon('info') }} {{ message }}</div>{% endfor %}
 {% endwith %}
 {% if demo_workspace %}<div class="workspace-switch no-print">
-  <span>You’re in a separate demo. Your original records are kept in the original workspace.</span>
+  <span>Working in a separate demo workspace.</span>
   <form method="post" action="{{ url_for('original_workspace') }}"><input name="csrf" type="hidden" value="{{ csrf }}"><button class="button compact" type="submit">Return to original workspace</button></form>
 </div>{% endif %}
 {% block content %}{% endblock %}

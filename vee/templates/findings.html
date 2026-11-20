@@ -31,14 +31,14 @@
     {% for hold in item.correction_hold %}<p>Message {{ hold.source }} · {{ hold.replacement }}</p>{% endfor %}</div>{% endif %}
   <div class="finding-tools no-print">
   <details class="tool-disclosure"><summary>Change processing method</summary>
-    <form class="mail-form" method="post" action="{{ url_for('review_findings', id=item.id) }}">
+    <form class="mail-form" method="post" action="{{ url_for('review_findings', id=item.id) }}" data-processing-form>
       {{ identity(item, csrf) }}<input name="source" type="hidden" value="{{ source }}">
       <label for="processing-mode">Processing method</label>
       <select id="processing-mode" name="mode"><option value="deterministic">Deterministic extraction (local)</option>
         <option value="mock">Mock model (local demonstration)</option>
         {% if live_enabled %}<option value="openai">Send this synthetic message to OpenAI</option>{% endif %}
       </select><p class="hint">{{ 'Selecting OpenAI sends the subject and body to the configured model and may incur a charge.' if live_enabled else 'Live AI is disabled. Both available methods run locally.' }}</p>
-      <button class="button">Process selected message</button>
+      <button class="button">Process selected message</button><p role="status" class="processing-status"></p>
     </form>
   </details>
   {% if advisory.findings %}<details class="tool-disclosure"><summary>Review or correct a finding</summary>

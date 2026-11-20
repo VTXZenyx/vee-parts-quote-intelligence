@@ -69,7 +69,9 @@ def multi_line_quote_and_print(page: Page, address: str) -> None:
     page.get_by_label("Quantity · BRG-6205-2RS").fill("1")
     page.get_by_label("Quotation notes").fill("Supply the first bearing now.")
     page.get_by_role("button", name="Save new version").click()
-    expect(page.locator(".quote-table")).to_contain_text("Requested 2, quoted 1")
+    bearing = page.locator(".quote-table tbody tr").filter(has_text="BRG-6205-2RS")
+    expect(bearing.locator(".requested-quantity")).to_have_text("Requested2")
+    expect(bearing.locator(".quoted-quantity")).to_have_text("Quoted1")
     page.get_by_role("button", name="Approve version 2").click()
 
     # Verify the real button binding without opening an interactive system dialog.

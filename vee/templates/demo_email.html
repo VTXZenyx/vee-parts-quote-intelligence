@@ -5,7 +5,7 @@
 <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ url_for('inbox') }}">{{ icon('arrow-left',15) }} Enquiry inbox</a></nav>
 <header class="case-head demo-heading">
   <div><h1>Demo Email Inbox</h1><p>Practice receiving customer requests and replies in a synthetic mailbox.</p></div>
-  <form method="post" action="{{ url_for('start_demo') }}"><input name="csrf" type="hidden" value="{{ csrf }}"><button class="button" type="submit">Start fresh demo</button></form>
+  {% if not guide %}<form method="post" action="{{ url_for('start_demo') }}"><input name="csrf" type="hidden" value="{{ csrf }}"><button class="button" type="submit">Start fresh demo</button></form>{% endif %}
 </header>
 <nav class="section-nav" aria-label="Demo email tools">
   {% for key, label in [('compose','Fictional email'), ('providers','Provider fixtures'), ('history','Message history')] %}
