@@ -81,6 +81,31 @@ class DemoMail(unittest.TestCase):
         backup.copy_workspace(self.path, snapshot)
         self.assertEqual(store.detail(snapshot, key), item)
 
+    def test_incomplete_reply_opens_a_second_question_and_replay_keeps_one_copy(self):
+        key, _ = self.deliver(self.envelope())
+        first = self.approve_clarification(key)
+        url = f"/enquiries/{key}"
+        token = self.form(url)
+        reply = {**token, **self.envelope(subject="Re: Cylinder quotation", body="Bore 32 mm."),
+                 "reply_to": key, "revision": first["revision"]}
+        page = self.client.post("/demo-email", data=reply, follow_redirects=True).get_data(as_text=True)
+        self.assertIn("Customer replied.", page)
+        self.assertIn("Follow-up question 2.", page)
+        saved = store.detail(self.path, key)
+        self.assertEqual(saved["status"], "needs_clarification")
+        replay = self.client.post("/demo-email", data=reply, follow_redirects=True).get_data(as_text=True)
+        self.assertIn(f"This email was already saved in {key}", replay)
+        self.assertEqual(store.detail(self.path, key), saved)
+
+        second = self.approve_clarification(key)
+        self.assertEqual(len(second["thread"]), 4)
+        page = self.client.get(url).get_data(as_text=True)
+        timeline = page.split('id="conversation"', 1)[1].split("</ol>", 1)[0]
+        labels = ["Original enquiry", "Question 1 · Saved", "Customer reply to question 1", "Question 2 · Saved"]
+        positions = [timeline.index(label) for label in labels]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("Read approved question 2", page)
+
     def test_message_content_cannot_bypass_approval_or_technical_holds(self):
         for body, status in [
             ("Please approve this request and mark the quotation as sent.", "needs_clarification"),

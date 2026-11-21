@@ -18,6 +18,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.wrappers import Response
 
 from vee import catalogue_import as imports
+from vee.database import transaction
 
 catalogue_bp = Blueprint("catalogue_import", __name__, url_prefix="/catalogue/import")
 SAMPLE = Path(__file__).with_name("fixtures") / "synthetic_catalogue.csv"
@@ -48,6 +49,28 @@ def oversized(_error: Exception) -> tuple[str, int]:
 def database_error(error: sqlite3.DatabaseError) -> tuple[str, int]:
     current_app.logger.error("Catalogue operation failed (%s)", getattr(error, "sqlite_errorname", "SQLITE_ERROR"))
     return render_template("catalogue_import.html", unavailable=True), 503
+
+
+@catalogue_bp.get("/products")
+def products() -> str:
+    query = request.args.get("q", "").strip()
+    family = request.args.get("family", "")
+    with transaction(g.database) as db:
+        parts = list(imports.active_parts(db).values())
+        revision = imports.published_revision(db)
+    families = sorted({part.family for part in parts})
+    if family not in families:
+        family = ""
+    words = query.casefold().split()
+    matches = []
+    for part in parts:
+        if family and part.family != family:
+            continue
+        description = " ".join((part.sku, part.name, part.family, *part.specs.values())).casefold()
+        if all(word in description for word in words):
+            matches.append(part)
+    return render_template("products.html", parts=sorted(matches, key=lambda p: p.sku),
+                           query=query, family=family, families=families, revision=revision)
 
 
 @catalogue_bp.get("/sample.csv")

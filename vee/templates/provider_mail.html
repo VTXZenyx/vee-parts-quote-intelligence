@@ -1,15 +1,15 @@
 <section id="provider-mail" class="panel case-section provider-mail" aria-labelledby="provider-title">
-  <h2 id="provider-title">Import a provider email</h2>
-  <p class="subtle">Import a simulated Gmail or Outlook delivery. To try an early reply, import the cylinder measurements before the Harbour cylinder request.</p>
+  <h2 id="provider-title">Gmail and Outlook examples</h2>
+  <p class="subtle">Choose an example to add to the local inbox. You can also try a reply that arrives before the original enquiry.</p>
   <form class="mail-form" method="post" action="{{ url_for('provider_delivery') }}">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label for="fixture">Simulated provider message</label>
+    <label for="fixture">Sample email</label>
     <select id="fixture" name="fixture" required>{% for key, fixture in fixtures.items() %}
       <option value="{{ key }}">{{ fixture.provider|capitalize }} · {{ fixture.label }}</option>{% endfor %}
     </select>
     <button class="button primary" type="submit">Import message</button>
   </form>
-  {% if receipts %}<h3>Provider deliveries</h3>
+  {% if receipts %}<h3>Received examples</h3>
   {% for row in receipts %}{% set m = row.message %}
   <details class="candidate" data-provider="{{ m.provider }}" data-provider-id="{{ m.mid }}">
     <summary><span><strong>{{ m.subject }}</strong><small>{{ row.status|capitalize }} · {{ m.provider|capitalize }} · {{ m.sender }}</small></span></summary>
@@ -28,7 +28,7 @@
         {% if row.enquiry_id %}<a class="button compact" href="{{ url_for('enquiry', id=row.enquiry_id) }}">Open {{ row.enquiry_id }}</a>{% endif %}
         {% for op in (['replay','retry'] if row.status == 'held' else ['replay']) %}
         <form method="post" action="{{ url_for('provider_delivery', receipt=row.id, operation=op) }}">
-          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="button compact">{{ 'Retry association' if op == 'retry' else 'Replay provider delivery' }}</button>
+          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="button compact">{{ 'Match to enquiry again' if op == 'retry' else 'Replay delivery' }}</button>
         </form>{% endfor %}
       </div>
     </div>

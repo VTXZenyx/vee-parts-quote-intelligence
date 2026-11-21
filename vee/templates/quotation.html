@@ -21,7 +21,7 @@
     {% set rejection = item.history|selectattr('action', 'equalto', 'reject_quote')|list|last %}
     {% if rejection %}<p class="issues rejection-note">{{ rejection.detail }}</p>{% endif %}
   {% elif quote_status == 'Historical' %}
-    <p class="issues">Earlier quotation. Review the current enquiry before preparing another version.</p>
+    <p class="issues">Previous quote needs updating. Check the current request, stock and prices before preparing another version.</p>
   {% endif %}
   <table class="quote-table" role="table">
     <caption class="sr">Quoted products and amounts in {{ quote.currency }}</caption>
@@ -56,7 +56,7 @@
   {% set issues = item.extraction.lines | map(attribute='issues') | sum(start=[]) %}
   {% if issues and not preview %}<div class="issues"><h4>Outstanding issues</h4><ul>{% for issue in issues|unique %}<li>{{ issue }}</li>{% endfor %}</ul></div>{% endif %}
   <div class="quote-footer">
-    <p class="quote-disclosure">Synthetic quotation · All amounts in {{ quote.currency }}</p>
+    <p class="quote-disclosure">Sample quotation · All amounts in {{ quote.currency }}</p>
     {% if item.status in ['draft_quote', 'rejected'] %}<a class="text-link no-print" href="#employee-action">Go to employee review {{ icon('arrow-right',15) }}</a>{% endif %}
   </div>
   {% if not preview and item.quotes|length > 1 %}

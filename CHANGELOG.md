@@ -1,5 +1,9 @@
 # Changelog
 
+## V7 · Clearer enquiries and safer quantity changes
+
+An employee can keep a draft above the requested quantity, but approval requires a recorded customer revision and fresh checks. The enquiry and customer screens use everyday sales-desk language. Manage products shows current warehouse stock, prices and specifications. Multi-round clarification and informal enquiry cases extend the regression suite.
+
 ## V6 · Distributor showcase and catalogue import
 
 Added a scenario picker, inline simulated replies, a simpler employee queue, account-scoped customer previews and a versioned synthetic CSV import in isolated workspaces. Corrected reversed dimension matching, preserved material requirements across revisions and improved narrow-screen quotation layout.

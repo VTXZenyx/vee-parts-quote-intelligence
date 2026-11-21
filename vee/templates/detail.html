@@ -19,30 +19,39 @@
   <div class="case-content">
     {% if item.quotes and item.status in ['draft_quote', 'rejected', 'approved'] %}{% include 'quotation.html' %}{% endif %}
     <section class="panel case-section case-brief" id="request" aria-labelledby="request-heading">
-      <div class="section-heading">{{ icon('mail',20) }}<h2 id="request-heading">Customer request</h2></div>
+      <div class="section-heading">{{ icon('mail',20) }}<h2 id="request-heading">What the customer asked for</h2></div>
       <div class="request-note">
         <div class="message-top"><strong>{{ item.customer }}</strong><span>{{ item.sender }}</span></div>
-        <p class="message-body">{{ inbound[-1].body }}</p>
-        {% if inbound|length > 1 %}<details><summary>Original customer request</summary><p class="message-body">{{ item.body }}</p></details>{% endif %}
+        <p class="message-body">{{ item.body }}</p>
+        {% if inbound|length > 1 %}
+        <div class="latest-message">
+          <h3>Latest customer message <small>Message {{ inbound|length }}</small></h3>
+          <p class="message-body">{{ inbound[-1].body }}</p>
+          <a href="#customer-message-{{ inbound|length }}">View in conversation</a>
+        </div>{% endif %}
       </div>
       {% if item.attachments %}<div class="attachments"><h3>Attachments</h3>{% for attachment in item.attachments %}<details class="attachment"><summary>{{ icon('paperclip',15) }}{{ attachment.name }}</summary>{% if not item.thread[0].provider and attachment.name == 'inspection-fitting.webp' %}<img class="inspection-photo" src="{{ url_for('static', filename='inspection-fitting.webp') }}" alt="Synthetic inspection photo of a worn fitting on a workshop bench">{% endif %}<p class="message-body">{{ attachment.text }}</p></details>{% endfor %}</div>{% endif %}
       <div class="part-facts">
-        <h3>What VEE found</h3>
+        <h3>What VEE understood</h3>
         {% for line in item.extraction.lines %}
         {% set match = line.candidates|selectattr('sku','equalto',line.sku)|first %}
         <article class="part-result">
-          <div class="part-label"><strong>{{ match.name if match else line.family }}</strong>{% if line.sku or line.reference %}<small class="mono">{{ line.sku or line.reference }}</small>{% endif %}</div>
-          <dl class="part-values">
-            <div><dt>Requested</dt><dd>{{ line.quantity if line.quantity is not none else 'Unconfirmed' }}{% if line.quantity is not none %} {{ 'unit' if line.quantity == 1 else 'units' }}{% endif %}</dd></div>
-            {% if match %}
-            <div><dt>Stock</dt><dd>{{ match.availability }}</dd></div>
-            <div><dt>Net unit price</dt><dd>{{ 'NZD ' ~ match.unit_price if match.unit_price is not none else 'Unconfirmed' }}</dd>{% if match.unit_price is not none %}<small>{{ match.price_basis }}</small>{% endif %}</div>
-            {% endif %}
+          <div class="part-label"><strong>{{ line.family or 'Unidentified product' }}</strong>{% if line.reference %}<small class="mono">{{ line.reference }}</small>{% endif %}</div>
+          <dl class="part-values request-values">
+            <div><dt>Requested quantity</dt><dd>{{ line.quantity if line.quantity is not none else 'Needs confirmation' }}{% if line.quantity is not none %} {{ 'unit' if line.quantity == 1 else 'units' }}{% endif %}</dd></div>
+            {% for field, value in line.attributes.items() %}<div><dt>{{ field|replace('_',' ')|capitalize }}</dt><dd>{{ value }}</dd></div>{% endfor %}
           </dl>
-          {% if match and item.status in ['needs_verification','commercial_hold'] %}
-            <dl class="product-specs">{% for key, val in match.specs.items() %}<div><dt>{{ key|replace('_',' ')|capitalize }}</dt><dd>{{ val }}</dd></div>{% endfor %}</dl>
-          {% endif %}
-          {% if line.issues %}<div class="issues"><strong>{{ 'Specifications conflict' if line.status == 'conflict' else 'Needs attention' }}</strong><ul>
+          <h4>What VEE found</h4>
+          {% if match %}
+            <p class="match-name">{{ match.name }} <small class="mono">{{ match.sku }}</small></p>
+            <dl class="part-values">
+              <div><dt>Stock</dt><dd>{{ match.availability }}</dd></div>
+              <div><dt>Net unit price</dt><dd>{{ 'NZD ' ~ match.unit_price if match.unit_price is not none else 'Unconfirmed' }}</dd>{% if match.unit_price is not none %}<small>{{ match.price_basis }}</small>{% endif %}</div>
+            </dl>
+            {% if item.status in ['needs_verification','commercial_hold'] %}<dl class="product-specs">{% for key, val in match.specs.items() %}<div><dt>{{ key|replace('_',' ')|capitalize }}</dt><dd>{{ val }}</dd></div>{% endfor %}</dl>{% endif %}
+          {% elif line.candidates %}<p class="match-note">{{ line.candidates|length }} catalogue {{ 'product' if line.candidates|length == 1 else 'products' }} to compare. A suitable match still needs confirmation. <a href="#evidence">Compare specifications</a></p>
+          {% else %}<p class="match-note">No matching catalogue product found.</p>{% endif %}
+          {% if line.issues %}<div class="issues"><strong>What needs checking</strong><ul>
             {% for candidate in line.candidates if candidate.sku == line.reference %}{% for fact in candidate.evidence if fact.startswith('Conflict') %}<li>{{ fact }}</li>{% endfor %}{% endfor %}
             {% for issue in line.issues %}<li>{{ issue }}</li>{% endfor %}
             {% for question in line.questions %}<li>{{ question }}</li>{% endfor %}</ul></div>{% endif %}
@@ -60,13 +69,13 @@
     </section>
   </aside>
   <div class="case-records">
-    <details class="panel record-details" {% if request.args.get('source') %}open{% endif %}><summary>Message analysis and processing options</summary>
+    <details class="panel record-details" {% if request.args.get('source') %}open{% endif %}><summary>Message details and analysis</summary>
     {% include 'findings.html' %}
     </details>
     <details class="panel record-details"><summary>Product specifications and alternatives</summary>
     <section class="case-section" id="evidence">
-      <div class="section-heading">{{ icon('list-check',20) }}<h2>Technical investigation</h2></div>
-      <p class="subtle evidence-intro">Compare the request with the synthetic catalogue. A suggested part requires employee verification.</p>
+      <div class="section-heading">{{ icon('list-check',20) }}<h2>Compare products</h2></div>
+      <p class="subtle evidence-intro">Check each suggested product against the customer’s requirements.</p>
       {% for line in item.extraction.lines %}
       <article class="investigation">
         <div class="line-head"><h3>{{ (line.family or 'Unclassified part')|replace('_', ' ')|capitalize }}</h3><span>Line {{ loop.index }} · Qty {{ line.quantity if line.quantity is not none else 'unknown' }}</span></div>
@@ -80,22 +89,28 @@
           <summary><span><strong>{{ candidate.name }}</strong><small class="mono">{{ candidate.sku }}</small></span>{{ icon('chevron',16) }}</summary>
           <div class="candidate-body">
             <span class="source">{{ icon('book',14) }}{{ candidate.source }}</span>
-            <p class="hint">{{ 'Employee verified' if candidate.sku == line.sku and candidate.sku in item.selected_skus else 'Catalogue suggestion · requires employee verification' }}</p>
+            <p class="hint">{{ 'Employee verified' if candidate.sku == line.sku and candidate.sku in item.selected_skus else 'Suggested product · needs employee confirmation' }}</p>
             {% if candidate.evidence %}<ul class="evidence-list">{% for evidence in candidate.evidence %}<li>{{ evidence }}</li>{% endfor %}</ul>{% endif %}
             {% if candidate.specs %}<dl class="attributes small">{% for key, value in candidate.specs.items() %}<div><dt>{{ key|replace('_',' ')|capitalize }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl>{% endif %}
             <div class="commercial"><div><small>Stock on hand</small><strong>{{ candidate.stock if candidate.stock is not none else 'Unconfirmed' }}</strong></div><div><small>Account price</small><strong>{% if candidate.unit_price is not none %}NZD {{ candidate.unit_price }}{% else %}Unconfirmed{% endif %}</strong></div><div><small>Availability</small><strong>{{ candidate.availability or 'Unconfirmed' }}</strong></div><div><small>Delivery</small><strong>{{ candidate.delivery or 'Unconfirmed' }}</strong></div></div>
             <p class="commercial-source">{{ candidate.price_basis }} · {{ candidate.commercial_source }}</p>
           </div>
-        </details>{% else %}<p class="subtle no-candidates">No catalogue candidates found.</p>{% endfor %}
+        </details>{% else %}<p class="subtle no-candidates">No catalogue products found.</p>{% endfor %}
       </article>
       {% endfor %}
     </section></details>
   </div>
   <div class="case-history no-print">
-    <details class="panel record-details"><summary>Message history · {{ item.thread|length }} messages</summary><section class="case-section" id="conversation">
+    <details class="panel record-details"><summary>Message history · {{ item.thread|length }} {{ 'message' if item.thread|length == 1 else 'messages' }}</summary><section class="case-section" id="conversation">
       <div class="section-heading">{{ icon('conversation',20) }}<h2>Message history</h2><span class="count">{{ item.thread|length }}</span></div>
-      {% set messages = namespace(number=inbound|length) %}
-      <ol class="timeline">{% for message in item.thread|reverse %}<li{% if message.direction == 'inbound' %} id="customer-message-{{ messages.number }}" tabindex="-1"{% set messages.number = messages.number - 1 %}{% endif %}><div class="event-top"><strong>{{ message.author }}</strong><small>{{ date(message.at, true) }}</small></div><span class="event-type">{{ 'Demo customer message' if message.direction == 'inbound' else 'Approved mock clarification' }}</span>{% if message.message_id or message.mid %}<details class="message-envelope"><summary>Email details</summary><dl class="mail-envelope">
+      {% set messages = namespace(number=0, question=0, previous='') %}
+      <ol class="timeline">{% for message in item.thread %}
+        {% if message.direction == 'outbound' %}{% set messages.question = messages.question + 1 %}{% else %}{% set messages.number = messages.number + 1 %}{% endif %}
+        <li{% if message.direction == 'inbound' %} id="customer-message-{{ messages.number }}" tabindex="-1"{% endif %}>
+          <div class="event-top"><strong>{{ message.author }}</strong><small>{{ date(message.at, true) }}</small></div>
+          <span class="event-type">{% if message.direction == 'outbound' %}Question {{ messages.question }} · Saved in demo inbox{% elif loop.first %}Original enquiry{% elif messages.previous == 'outbound' %}Customer reply to question {{ messages.question }}{% else %}Customer follow-up{% endif %}{% if message.body.lower().startswith('revised request:') %} · Updated request{% endif %}</span>
+          {% set messages.previous = message.direction %}
+          {% if message.message_id or message.mid %}<details class="message-envelope"><summary>Email details</summary><dl class="mail-envelope">
         <div><dt>Subject</dt><dd>{{ message.subject }}</dd></div><div><dt>From</dt><dd>{{ message.sender }}</dd></div><div><dt>To</dt><dd>{{ message.recipient }}</dd></div><div><dt>Message ID</dt><dd class="mono">{{ message.message_id or message.mid }}</dd></div>
       </dl></details>{% endif %}<p class="message-body">{{ message.body }}</p></li>{% endfor %}</ol>
     </section>

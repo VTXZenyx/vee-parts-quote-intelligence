@@ -88,16 +88,16 @@ class CatalogueImportWebTests(unittest.TestCase):
         self.assertEqual(self.stage().location, staged.location)
         activate = staged.location + '/activate'
         self.assertEqual(self.client.post(activate, data={'csrf': self.token()}).status_code, 422)
-        self.assertIn(b'Activate catalogue revision', self.client.get(staged.location).data)
+        self.assertIn(b'Apply product changes', self.client.get(staged.location).data)
         response = self.client.post(activate, data={'csrf': self.token(), 'confirm': 'yes'}, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'Catalogue revision 1', response.data)
-        self.assertNotIn(b'Activate catalogue revision', response.data)
+        self.assertIn('Products updated · Version 1'.encode(), response.data)
+        self.assertNotIn(b'Apply product changes', response.data)
         self.assertEqual(self.stage().status_code, 422)
         workspace = self.client.get_cookie(WORKSPACE_COOKIE).value
         reopened = create_app(self.database).test_client()
         reopened.set_cookie(WORKSPACE_COOKIE, workspace)
-        self.assertIn(b'Catalogue revision 1', reopened.get(staged.location).data)
+        self.assertIn('Products updated · Version 1'.encode(), reopened.get(staged.location).data)
 
     def test_new_revision_blocks_activation_from_an_old_browser_tab(self):
         self.start()
@@ -109,8 +109,8 @@ class CatalogueImportWebTests(unittest.TestCase):
         self.assertEqual(self.client.post(later.location + '/activate', data=form).status_code, 303)
         stale = self.client.post(earlier.location + '/activate', data=form)
         self.assertEqual(stale.status_code, 409)
-        self.assertNotIn(b'Activate catalogue revision', stale.data)
-        self.assertIn(b'Review a fresh file', stale.data)
+        self.assertNotIn(b'Apply product changes', stale.data)
+        self.assertIn(b'Review the file again', stale.data)
 
     def test_failed_publication_and_unreadable_review_explain_recovery(self):
         from vee import catalogue_import
@@ -134,5 +134,5 @@ class CatalogueImportWebTests(unittest.TestCase):
         for result in (self.client.get(stage.location), self.client.post(activate, data=form)):
             self.assertEqual(result.status_code, 409)
             self.assertIn(b'role="alert"', result.data)
-            self.assertNotIn(b'Activate catalogue revision', result.data)
+            self.assertNotIn(b'Apply product changes', result.data)
         self.assertEqual(catalogue_import.active_revision(database), 0)

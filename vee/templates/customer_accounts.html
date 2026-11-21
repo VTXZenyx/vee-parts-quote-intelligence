@@ -1,16 +1,16 @@
 {% extends 'base.html' %}
 {% from 'components.html' import icon %}
-{% block title %}Customer preview mode · {{ account }}{% endblock %}
+{% block title %}Customer quotes · {{ account }}{% endblock %}
 {% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='customer.css') }}">{% endblock %}
 {% block content %}
 <header class="customer-intro">
   <div>
-    <p class="customer-context">{{ icon('building',16) }} Presenter-controlled local demonstration</p>
-    <h1>Customer preview mode</h1>
-    <p>Choose a fictional account to see its quotations. Account switching is a presenter control. No sign-in is required.</p>
+    <p class="customer-context">{{ icon('building',16) }} Fictional customer accounts</p>
+    <h1>Customer quotes</h1>
+    <p>Choose a customer to see their approved quotes. In Demo Mode anyone using this workspace can switch accounts.</p>
   </div>
   <form action="{{ url_for('customer.accounts') }}" method="get" class="customer-switch">
-    <label for="customer-account">Fictional account</label>
+    <label for="customer-account">Customer account</label>
     <div><select id="customer-account" name="account">
       {% for name in accounts %}<option value="{{ name }}" {% if name == account %}selected{% endif %}>{{ name }}</option>{% endfor %}
     </select><button class="button" type="submit">View account {{ icon('arrow-right',14) }}</button></div>
@@ -40,11 +40,11 @@
   <section class="customer-group" aria-labelledby="workspace-quotes">
     <h3 id="workspace-quotes">Current workspace quotations</h3>
     {% if current %}{{ documents(current, workspace_source) }}
-    {% else %}<p>No current employee-approved quotation for this account in the {{ 'isolated demonstration' if demo_workspace else 'original' }} workspace.</p>{% endif %}
+    {% else %}<p>This customer has no approved quote in the {{ 'isolated demonstration' if demo_workspace else 'original' }} workspace.</p>{% endif %}
   </section>
   <section class="customer-group" aria-labelledby="sample-quotes">
     <h3 id="sample-quotes">Prepared examples</h3>
-    <p>Approved in a separate synthetic workspace for this demonstration.</p>
+    <p>Approved in a separate sample workspace.</p>
     {{ documents(examples, 'examples') }}
   </section>
 </section>

@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Manage products{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='products.css') }}">{% endblock %}
+{% block content %}
+<header class="workspace-heading"><div><h1>Manage products</h1><p>Hamilton warehouse · Sample stock and net list prices{% if revision %} · Update {{ revision }}{% endif %}</p></div>
+<a class="button" href="{{ url_for('catalogue_import.index') }}">Update products from CSV</a></header>
+<section class="panel warehouse">
+<form class="product-search" role="search"><label>Find a product<input name="q" type="search" value="{{ query }}" placeholder="Name, reference or specification"></label>
+<label>Product group<select name="family"><option value="">All groups</option>{% for f in families %}<option {% if f == family %}selected{% endif %}>{{ f }}</option>{% endfor %}</select></label>
+<button class="button primary">Search</button>{% if family or query %}<a href="{{ url_for('catalogue_import.products') }}">Clear filters</a>{% endif %}</form>
+<h2>{{ parts|length }} {{ 'product' if parts|length == 1 else 'products' }}</h2>
+{% for part in parts %}
+<details class="warehouse-line"><summary><span><strong>{{ part.name }}</strong><small>{{ part.sku }} · {{ part.family }}</small></span>
+<span>{{ 'Discontinued' if part.discontinued else ('Stock unconfirmed' if part.stock is none else ('Out of stock' if part.stock == 0 else part.stock|string ~ ' on hand')) }}</span>
+<span>{{ 'Price unconfirmed' if part.price is none else 'NZD ' ~ part.price }}</span></summary>
+<dl class="attributes">{% for key,value in part.specs.items() %}<div><dt>{{ key|capitalize }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl></details>
+{% else %}<p>Try a different reference or clear the filters to see every product.</p>{% endfor %}
+</section>{% endblock %}

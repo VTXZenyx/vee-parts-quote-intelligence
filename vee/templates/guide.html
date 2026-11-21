@@ -5,7 +5,7 @@
 }[guide_page] %}
 <section class="guide guide-progress no-print" id="guide" aria-labelledby="guide-title">
   <div class="guide-top">
-    <div><p class="guide-label">Guided demonstration · Step {{ stage_number }} of 5</p><h2 id="guide-title">{{ guide_title }}</h2></div>
+    <div><p class="guide-label">Guided demo · Step {{ stage_number }} of 5</p><h2 id="guide-title">{{ guide_title }}</h2></div>
     <details class="guide-options"><summary>Demo controls</summary>
       <div>
         <form method="post" action="{{ url_for('start_demo') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="scenario" value="{{ guide.get('scenario','cylinder') }}"><input type="hidden" name="guided" value="1"><button class="button compact">Restart in fresh workspace</button></form>

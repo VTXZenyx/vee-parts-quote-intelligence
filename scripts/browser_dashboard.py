@@ -5,7 +5,7 @@ from playwright.sync_api import Page, expect
 
 def exercise_dashboard(page: Page, address: str) -> None:
     page.goto(address)
-    expect(page.get_by_role("heading", name="Enquiry workspace")).to_be_visible()
+    expect(page.get_by_role("heading", name="Enquiries")).to_be_visible()
     page.keyboard.press("Tab")
     expect(page.get_by_role("link", name="Skip to content")).to_be_focused()
     page.keyboard.press("Enter")

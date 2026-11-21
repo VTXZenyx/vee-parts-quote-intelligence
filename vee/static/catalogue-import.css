@@ -43,3 +43,6 @@
   .import-comparison th,.import-comparison td { padding: .45rem .35rem; }
   .import-counts { padding: .75rem; gap: .5rem 1rem; }
 }
+@media screen and (min-width: 1000px) {
+  .import-workspace:has(.import-review) { max-width: 74rem; }
+}

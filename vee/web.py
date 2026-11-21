@@ -81,6 +81,10 @@ def create_app(database: Path | str | None = None) -> Flask:
         app.logger.error("Workspace database operation failed (%s)", getattr(error, "sqlite_errorname", "SQLITE_ERROR"))
         return render_template("unavailable.html"), 503
 
+    @app.errorhandler(413)
+    def form_too_large(_error: Exception) -> tuple[str, int]:
+        return render_template("form_too_large.html"), 413
+
     @app.errorhandler(404)
     def page_missing(_error: Exception) -> tuple[str, int]:
         return render_template("not_found.html"), 404
@@ -206,11 +210,16 @@ def create_app(database: Path | str | None = None) -> Flask:
                     for field in ("customer", "sender", "subject", "body")
                 ):
                     session["guide"] = {**guide, "enquiry": key}
-                flash("Email already received. The conversation is unchanged." if repeated
-                      else "Demo email received. Review the enquiry and its next step.", "success")
+                if repeated:
+                    message = f"This email was already saved in {key}. The conversation contains one copy."
+                elif reply_to:
+                    message = "Customer replied. Review the updated request and next step."
+                else:
+                    message = f"Email saved as {key}. Review the customer’s request."
+                flash(message, "success")
                 return redirect(url_for("enquiry", id=key), code=303)
         elif item and item["status"] != "awaiting_reply" and not store.accepts_revision(item):
-            flash("Approve a clarification in the enquiry before recording a customer reply.", "error")
+            flash("Approve a question in the enquiry before adding a customer reply.", "error")
             return redirect(url_for("enquiry", id=item["id"]), code=303)
 
         deliveries = []
@@ -237,7 +246,7 @@ def create_app(database: Path | str | None = None) -> Flask:
             if receipt is None:
                 fixture = provider_mail.FIXTURES.get(request.form.get("fixture", ""))
                 if not fixture:
-                    raise ValueError("Select a Gmail or Outlook fixture.")
+                    raise ValueError("Choose a Gmail or Outlook example.")
                 result = provider_mail.ingest(g.database, fixture["provider"], fixture["message"])
             elif operation == "retry":
                 result = provider_mail.retry(g.database, receipt)
@@ -250,7 +259,13 @@ def create_app(database: Path | str | None = None) -> Flask:
         except ValueError as error:
             flash("Rejected. " + str(error), "error")
         else:
-            flash(f"{result['status'].capitalize()} delivery. {result['reason']}", "success")
+            if result["status"] == "duplicate":
+                flash("Duplicate email recognised. The original was kept and the enquiry was processed only once."
+                      if result["enquiry_id"] else "Duplicate email recognised. The original is still waiting for review.", "success")
+            elif result["status"] == "held":
+                flash(f"This email needs review. {result['reason']}", "error")
+            else:
+                flash(f"Email added to {result['enquiry_id']}.", "success")
         return redirect(url_for("demo_email", view="providers"), code=303)
 
     @app.post("/demo-email/<message_id>/replay")
@@ -268,12 +283,16 @@ def create_app(database: Path | str | None = None) -> Flask:
         message_id = values.get("message_id", str(uuid4()))
         if request.method == "POST":
             try:
-                key = store.receive(g.database, values.get("message_id", ""), values.get("customer", ""),
-                                    values.get("subject", ""), values.get("body", ""))
+                key, repeated = store.receive_enquiry(
+                    g.database, values.get("message_id", ""), values.get("customer", ""),
+                    values.get("subject", ""), values.get("body", ""),
+                )
             except ValueError as error:
                 flash(str(error), "error")
                 return render_template("new.html", accounts=store.CUSTOMERS, values=values,
                                        message_id=message_id), 422
+            flash(f"This enquiry was already saved as {key}. Opening the existing record."
+                  if repeated else f"Enquiry {key} saved.", "success")
             return redirect(url_for("enquiry", id=key), code=303)
         return render_template("new.html", accounts=store.CUSTOMERS, values=values, message_id=message_id)
 
@@ -300,7 +319,10 @@ def create_app(database: Path | str | None = None) -> Flask:
             source, advisory = "", None
         body = demo.prepared_reply(active_guide(), item)
         reply = {**store.reply_envelope(item), "body": body, "message_id": str(uuid4())} if body else None
+        excess = (store.quantity_increases(item["extraction"], item["quotes"][-1])
+                  if item["status"] == "draft_quote" else [])
         return render_template("detail.html", item=item, advisory=advisory, source=source, prepared_reply=reply,
+                               quantity_increases=excess,
                                partial=partial_offer(item["extraction"]), inbound=findings.sources(item), live_enabled=live_enabled())
 
     @app.get("/enquiries/<id>/customer-preview")
@@ -344,11 +366,13 @@ def create_app(database: Path | str | None = None) -> Flask:
             flash(str(error), "error")
         else:
             messages = {
-                "approve_clarification": "Question approved and recorded in the simulated mailbox.",
+                "request_quantity_confirmation": "Quantity question saved in the demo inbox. Waiting for the customer’s reply.",
+                "approve_clarification": "Question saved in the demo inbox. Waiting for customer reply.",
                 "save_clarification": "Changes saved to the customer question.",
-                "verify_match": "Part selection verified. You can prepare the quotation.",
-                "verify_partial": "Available quantity verified for a partial quotation.",
-                "reconcile_requirements": "Revised request recorded. Review the updated requirements.",
+                "verify_match": "Product confirmed. You can now prepare the quote.",
+                "verify_partial": "Available stock confirmed for a partial quote.",
+                "simulate_reply": "Customer replied. Review the new details.",
+                "reconcile_requirements": "Updated request confirmed. Check the products again.",
                 "reject_quote": "Quotation returned for revision.",
                 "refresh_evidence": "Stock, prices and part specifications checked again.",
             }

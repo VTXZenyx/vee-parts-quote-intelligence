@@ -53,7 +53,7 @@ class WorkflowTests(unittest.TestCase):
         self.act("reject_quote", reason="Adjust the quantity with the customer.")
         with self.assertRaises(ValueError):
             self.act("approve_quote")
-        self.act("edit_quote", quantity="3", notes="Confirmed by buyer.")
+        self.act("edit_quote", quantity="1", notes="Quote one unit now.")
         self.act("approve_quote")
         with self.assertRaises(ValueError):
             self.act("edit_quote", quantity="4")
@@ -61,7 +61,7 @@ class WorkflowTests(unittest.TestCase):
         item = store.detail(self.path, self.item["id"])
         self.assertEqual(item["status"], "approved")
         self.assertEqual(item["quotes"][0], initial)
-        self.assertEqual(item["quotes"][-1]["lines"][0]["quantity"], 3)
+        self.assertEqual(item["quotes"][-1]["lines"][0]["quantity"], 1)
         self.assertEqual(item["quotes"][-1]["version"], 2)
         self.assertEqual(item["history"][-1]["action"], "approve_quote")
 

@@ -183,3 +183,21 @@ The first integration unit run found generic feedback for a superseded customer 
 The five guided browser cases checked NZD 58.65, NZD 316.25, NZD 67.62 with four outstanding, the blocked 350-bar request and the revised NZD 474.38 quote. The browser suite reopens the generated databases to compare saved totals and decisions. CSV tests cover missing prices, malformed rows, repeated files, a stale review, failed activation and historical snapshots. Separate V4 and V5 upgrade drills preserved historical quotes, approved a valid old draft, restarted the app and restored a backup. The V5 drill reopened a formerly approved unsafe cylinder match while retaining its historical snapshot.
 
 Captured 11 screens at each of 1440, 1024, 768, 390 and 320 pixels; the viewport check found no horizontal overflow. The 320-pixel quotation heading stays on one line. The sample bearing quotation printed on one A4 page with NZD 7.65 GST, NZD 58.65 total and unreserved stock terms.
+
+## V7 verification
+
+| Command | Observed result |
+| --- | --- |
+| `ruff check vee tests scripts evaluation` | Passed after simplifying an open-question backup check. |
+| `mypy --check-untyped-defs vee evaluation` | Passed across 15 source files. |
+| `python -m pip check` | No broken requirements. |
+| `python -m unittest discover -v` | 116 passed. The first run exposed missing quantity and candidate scoring in the evaluator. |
+| `python -m evaluation.run` | 117/117 synthetic cases, 136/136 line identities or abstentions, 42/42 quantities, 4/4 candidate suggestions and 24/24 totals. Zero false verified references or unsafe-ready cases. |
+| `python -m evaluation.enquiries` | 32/32 in deterministic mode and 32/32 in offline mock mode. |
+| `python -m scripts.browser_smoke` | Passed all five scenarios, quantity confirmation and reapproval, replay, customer views, CSV workflows and responsive layout checks. |
+
+The five scenario outcomes remained NZD 58.65 for the bearing, NZD 316.25 for the clarified cylinder, NZD 67.62 with four bearings outstanding, a blocked 350-bar application against a 250-bar rating, and NZD 474.38 for the revised contract order. The browser checked the saved decisions. A separate browser check exercised product search, filtering, keyboard navigation and empty results.
+
+Captured 13 screens at 320, 390, 768, 1024, 1280 and 1440 px with no measured horizontal overflow. Inspected desktop and mobile samples. The approved bearing quotation printed on one A4 page with NZD 7.65 GST, NZD 58.65 total and the stock and delivery terms.
+
+Upgrade and restore drills reopened V4 and V5 records and approved a valid historical draft. A V6 approval for six units against a four-unit request became historical under V7. Both snapshots and the original approval survived restart and recovery. These checks use synthetic workspaces. First-time employee usability and accuracy on independently labelled distributor enquiries still need external validation.

@@ -34,8 +34,11 @@ class Intake(unittest.TestCase):
         result = self.client.post(url, data=self.data)
         self.assertEqual(result.status_code, 303)
         page = self.client.get(result.headers["Location"])
-        self.assertIn(b"Clarification needed", page.data)
+        self.assertIn(b"More information needed", page.data)
         self.assertIn(b"We need two pneumatic cylinders.", page.data)
+        repeated = self.client.post(url, data=self.data, follow_redirects=True)
+        self.assertEqual(repeated.request.path, result.headers["Location"])
+        self.assertIn(b"This enquiry was already saved", repeated.data)
 
     def test_unidentified_photo_has_no_verified_reference(self):
         item = store.detail(self.path, "ENQ-1037")

@@ -18,3 +18,7 @@
   .workspace-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 0 4px; }
   .workspace-nav a { justify-content: center; min-height: 32px; }
 }
+.environment { border: 1px solid #cfdbbf; border-radius: 999px; padding: 4px 9px; background: #f3f7ed; color: #384f32; white-space: nowrap; }
+@media screen and (max-width: 740px) {
+  .workspace-nav a, .button, .inbox-tabs a { min-height: 44px; }
+}
