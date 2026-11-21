@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% from 'components.html' import employee_styles %}
+{% block page_styles %}{{ employee_styles() }}{% endblock %}
 {% block title %}New synthetic enquiry{% endblock %}
 {% block content %}
 <nav class="breadcrumb"><a href="{{ url_for('inbox') }}">← Enquiry inbox</a></nav>

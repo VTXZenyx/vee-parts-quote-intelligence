@@ -7,6 +7,8 @@
   <meta name="theme-color" content="#123b33">
   <title>{% block title %}Enquiry workspace{% endblock %} · VEE Parts &amp; Quote Intelligence</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='navigation.css') }}">
+  {% block page_styles %}{% endblock %}
   <script src="{{ url_for('static', filename='workspace.js') }}" defer></script>
 </head>
 <body>
@@ -20,13 +22,15 @@
     <nav class="workspace-nav" aria-label="Workspace">
       <a href="{{ url_for('inbox') }}" {% if request.endpoint in ('inbox', 'enquiry', 'new_enquiry') %}aria-current="page"{% endif %}>Enquiries</a>
       <a href="{{ url_for('demo_email') }}" {% if request.endpoint in ('demo_email', 'replay_email') %}aria-current="page"{% endif %}>{{ icon('mail', 16) }} Demo Email Inbox</a>
-      <span class="environment"><span></span>{{ 'Fresh demo workspace' if demo_workspace else 'Synthetic workspace' }}</span>
+      <a href="{{ url_for('customer.accounts') }}" {% if request.blueprint == 'customer' %}aria-current="page"{% endif %}>Customer preview</a>
+      <a href="{{ url_for('catalogue_import.index') }}" {% if request.blueprint == 'catalogue_import' %}aria-current="page"{% endif %}>Catalogue import</a>
     </nav>
+    <span class="environment"><span></span>{{ 'Fresh demo workspace' if demo_workspace else 'Synthetic workspace' }}</span>
   </div>
 </header>
 <main class="shell" id="main" tabindex="-1">
 {% with messages = get_flashed_messages(with_categories=true) %}
-  {% for category, message in messages %}<div class="flash {{ category }}{% if guide and category == 'success' %} sr{% endif %}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ icon('info') }} {{ message }}</div>{% endfor %}
+  {% for category, message in messages %}<div class="flash {{ category }}{% if guide and category == 'success' %} compact-feedback{% endif %}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ icon('info') }} {{ message }}</div>{% endfor %}
 {% endwith %}
 {% macro workspace_switch() %}{% if demo_workspace %}<div class="workspace-switch no-print">
   <span>Isolated demonstration workspace</span>

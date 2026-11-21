@@ -22,8 +22,9 @@ from flask import (
 from werkzeug.exceptions import Forbidden
 from werkzeug.wrappers import Response
 
-from vee import demo, findings, provider_mail, store
+from vee import customer, demo, findings, provider_mail, store
 from vee.catalogue import partial_offer
+from vee.catalogue_web import catalogue_bp
 from vee.extraction import live_enabled
 
 WORKSPACE_COOKIE = "vee_demo_workspace"
@@ -41,6 +42,9 @@ def create_app(database: Path | str | None = None) -> Flask:
         TRUSTED_HOSTS=["localhost", "127.0.0.1", "[::1]"],
     )
 
+    app.register_blueprint(catalogue_bp)
+    app.register_blueprint(customer.make_blueprint(path))
+
     workspace_folder = path.parent / f"{path.name}.demos"
 
     def csrf_token() -> str:
@@ -57,7 +61,9 @@ def create_app(database: Path | str | None = None) -> Flask:
 
     @app.context_processor
     def form_context() -> dict:
-        return {"csrf": csrf_token(), "demo_workspace": g.workspace, "guide": active_guide()}
+        guide = active_guide()
+        title = demo.SHOWCASE[guide.get("scenario", "cylinder")].title if guide else ""
+        return {"csrf": csrf_token(), "demo_workspace": g.workspace, "guide": guide, "guide_title": title}
 
     @app.after_request
     def response_headers(response: Response) -> Response:
@@ -100,7 +106,7 @@ def create_app(database: Path | str | None = None) -> Flask:
                 # A saved V2 demo cookie may reopen an older workspace after upgrading.
                 with store._transaction(candidate) as db:
                     version = db.execute("PRAGMA user_version").fetchone()[0]
-                if version < 3:
+                if version < store.SCHEMA_VERSION:
                     store.init(candidate)
 
     @app.before_request
@@ -113,6 +119,10 @@ def create_app(database: Path | str | None = None) -> Flask:
             abort(403)
         if request.headers.get("Origin", request.host_url.rstrip("/")) != request.host_url.rstrip("/"):
             abort(403)
+
+    @app.get("/showcase")
+    def showcase() -> str:
+        return render_template("showcase.html", showcase=demo.SHOWCASE, scenarios=demo.SCENARIOS)
 
     @app.post("/demo-workspace/start")
     def start_demo() -> Response:
@@ -127,9 +137,12 @@ def create_app(database: Path | str | None = None) -> Flask:
         session.pop("guide", None)
         if request.form.get("guided") == "1":
             session["guide"] = {"workspace": identifier, "enquiry": "", "scenario": scenario}
-        response = make_response(redirect(url_for("demo_email", scenario=scenario), code=303))
+        destination = url_for("demo_email", scenario=scenario)
+        if request.form.get("destination") == "catalogue":
+            destination = url_for("catalogue_import.index")
+        response = make_response(redirect(destination, code=303))
         response.set_cookie(WORKSPACE_COOKIE, identifier, httponly=True, samesite="Strict")
-        flash("Fresh demo workspace ready. Start by receiving an example email.", "success")
+        flash("Fresh demo workspace ready.", "success")
         return response
 
     @app.post("/demo-workspace/exit-guide")
@@ -200,14 +213,19 @@ def create_app(database: Path | str | None = None) -> Flask:
             flash("Approve a clarification in the enquiry before recording a customer reply.", "error")
             return redirect(url_for("enquiry", id=item["id"]), code=303)
 
-        rows = store.inbox(g.database)
-        deliveries = sorted(
-            ((row, message) for row in rows for message in row["thread"] if message.get("message_id")),
-            key=lambda entry: entry[1]["at"], reverse=True,
-        )
+        deliveries = []
+        waiting = []
+        if view == "history":
+            deliveries = sorted(
+                ((row, message) for row in store.inbox(g.database)
+                 for message in row["thread"] if message.get("message_id")),
+                key=lambda entry: entry[1]["at"], reverse=True,
+            )
+        elif view == "compose":
+            waiting = [row for row in store.queue_summaries(g.database) if row["status"] == "awaiting_reply"]
         return render_template(
             "demo_email.html", values=values, item=item, view=view, scenarios=demo.SCENARIOS, reply_examples=demo.REPLY_EXAMPLES,
-            deliveries=deliveries, waiting=[row for row in rows if row["status"] == "awaiting_reply"],
+            deliveries=deliveries, waiting=waiting,
             accounts=store.CUSTOMERS, fixtures=provider_mail.FIXTURES,
             receipts=provider_mail.deliveries(g.database) if view == "providers" else [],
         ), status
@@ -262,7 +280,7 @@ def create_app(database: Path | str | None = None) -> Flask:
     @app.get("/")
     def inbox() -> str:
         query = request.args.get("q", "").strip()
-        rows = store.inbox(g.database)
+        rows = store.queue_summaries(g.database)
         all_rows = rows
         if query:
             rows = [r for r in rows if any(query.casefold() in str(r[k]).casefold()
@@ -276,11 +294,13 @@ def create_app(database: Path | str | None = None) -> Flask:
         except KeyError:
             abort(404)
         try:
-            source, advisory = findings.displayed(item, request.args.get("source"))
+            source, advisory = findings.displayed(g.database, item, request.args.get("source"))
         except ValueError as error:
             flash(str(error), "error")
             source, advisory = "", None
-        return render_template("detail.html", item=item, advisory=advisory, source=source,
+        body = demo.prepared_reply(active_guide(), item)
+        reply = {**store.reply_envelope(item), "body": body, "message_id": str(uuid4())} if body else None
+        return render_template("detail.html", item=item, advisory=advisory, source=source, prepared_reply=reply,
                                partial=partial_offer(item["extraction"]), inbound=findings.sources(item), live_enabled=live_enabled())
 
     @app.get("/enquiries/<id>/customer-preview")
@@ -290,8 +310,7 @@ def create_app(database: Path | str | None = None) -> Flask:
         except KeyError:
             abort(404)
         version = request.args.get("version")
-        if (item["status"] != "approved" or not item["quotes"]
-                or (version is not None and version != str(item["quotes"][-1]["version"]))):
+        if not customer.current_approved(item, version):
             return render_template("preview_unavailable.html", item=item), 409
         return render_template("customer_preview.html", item=item, preview=True)
 
@@ -317,13 +336,29 @@ def create_app(database: Path | str | None = None) -> Flask:
     @app.post("/enquiries/<id>/actions")
     def perform(id: str) -> Response:
         try:
-            store.act(g.database, id, request.form.get("action", ""), request.form.to_dict())
+            action = request.form.get("action", "")
+            item = store.act(g.database, id, action, request.form.to_dict())
         except KeyError:
             abort(404)
         except ValueError as error:
             flash(str(error), "error")
         else:
-            flash("Changes saved.", "success")
+            messages = {
+                "approve_clarification": "Question approved and recorded in the simulated mailbox.",
+                "save_clarification": "Changes saved to the customer question.",
+                "verify_match": "Part selection verified. You can prepare the quotation.",
+                "verify_partial": "Available quantity verified for a partial quotation.",
+                "reconcile_requirements": "Revised request recorded. Review the updated requirements.",
+                "reject_quote": "Quotation returned for revision.",
+                "refresh_evidence": "Stock, prices and part specifications checked again.",
+            }
+            if action in {"create_quote", "edit_quote", "approve_quote"}:
+                latest = item["quotes"][-1]
+                decision = "approved" if action == "approve_quote" else "saved as a draft"
+                message = f"Quotation version {latest['version']} {decision} · {latest['currency']} {latest['total']}."
+            else:
+                message = messages.get(action, "Changes saved to this enquiry.")
+            flash(message, "success")
         return redirect(url_for("enquiry", id=id), code=303)
 
     return app

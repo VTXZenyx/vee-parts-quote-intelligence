@@ -1,35 +1,54 @@
-"""Follow the new employee guide using the same forms as the regular workflow."""
+"""Drive each guided customer case using ordinary employee controls."""
 
 from playwright.sync_api import Page, expect
+
+
+def start_scenario(page: Page, address: str, scenario: str) -> None:
+    page.goto(address)
+    page.get_by_role("link", name="Start a demonstration").press("Enter")
+    choices = page.get_by_role("group", name="Demonstration scenario")
+    expect(choices.get_by_role("radio")).to_have_count(5)
+    choices.get_by_role("radio", name=scenario).check()
+    page.get_by_role("button", name="Start scenario").press("Enter")
+    expect(page.locator("#guide h2")).to_have_text(scenario)
+    expect(page.locator("[aria-current=step]")).to_have_text("Request")
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.get_by_role("button", name="Open enquiry").press("Enter")
+    expect(page.locator("[aria-current=step]")).to_have_text("Product review")
+
+
+def expect_decision(page: Page, label: str) -> None:
+    controls = page.locator("#employee-action .button.primary:visible")
+    expect(controls).to_have_count(1)
+    expect(controls).to_have_text(label)
 
 
 def exercise_guide(page: Page, address: str, width: int) -> None:
     page.set_viewport_size({"width": width, "height": 844})
     page.goto(address)
     original_rows = page.locator(".inbox-table tbody tr").all_text_contents()
-    page.get_by_role("button", name="Start product demonstration").press("Enter")
-    expect(page.locator("#guide")).to_contain_text("Harbour Packaging")
-    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.get_by_role("button", name="Receive test email").click()
-    expect(page.locator("#guide")).to_contain_text("missing")
-    expect(page.locator("#evidence")).to_contain_text("Outstanding issues")
+    start_scenario(page, address, "Missing product information")
+    expect(page.locator("#request .issues")).to_contain_text("bore")
     expect(page.get_by_role("button", name="Create draft quotation")).to_have_count(0)
-    page.get_by_role("button", name="Approve clarification").click()
-    page.locator("#guide").get_by_role("link", name="Load the cylinder reply").click()
-    expect(page.get_by_label("Message", exact=True)).to_have_value(
-        "Bore 32 mm, stroke 100 mm, double acting, ISO 15552, G1/8 ports, foot mount."
-    )
-    page.get_by_role("button", name="Receive demo reply").click()
-    page.get_by_role("checkbox", name="Confirm CYL-32-100-DA").check()
-    page.get_by_role("button", name="Verify match", exact=True).click()
-    page.get_by_role("button", name="Create draft quotation").click()
+    expect_decision(page, "Approve clarification")
+    page.get_by_role("button", name="Approve clarification").press("Enter")
+    expect_decision(page, "Record prepared reply")
+    expect(page.locator("#employee-action .prepared-message")).to_contain_text("Bore 32 mm, stroke 100 mm")
+    page.get_by_role("button", name="Record prepared reply").press("Enter")
+    expect(page.locator("#conversation li")).to_have_count(3)
+    expect_decision(page, "Verify match")
+    page.get_by_role("checkbox", name="Confirm CYL-32-100-DA").press("Space")
+    page.get_by_role("button", name="Verify match", exact=True).press("Enter")
+    expect(page.locator("[aria-current=step]")).to_have_text("Prepare quote")
+    page.get_by_role("button", name="Create draft quotation").press("Enter")
     expect(page.locator("#quotation")).to_contain_text("316.25")
     expect(page.locator("#quotation")).to_contain_text("41.25")
+    expect(page.locator("[aria-current=step]")).to_have_text("Approval")
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.get_by_role("link", name="Go to employee review").click()
+    page.get_by_role("link", name="Go to employee review").press("Enter")
     expect(page.locator(":target")).to_have_id("employee-action")
-    page.get_by_role("button", name="Approve version 1").click()
-    expect(page.locator("#guide")).to_contain_text("Guided demo complete")
+    page.get_by_role("button", name="Approve version 1").press("Enter")
+    expect(page.locator("[aria-current=step]")).to_have_text("Preview")
     page.get_by_role("link", name="Open customer preview").press("Enter")
     expect(page.get_by_role("heading", name="VEE Industrial Supplies")).to_be_visible()
     expect(page.locator(".document-sheet")).to_contain_text("Delivery date unconfirmed")
@@ -40,54 +59,65 @@ def exercise_guide(page: Page, address: str, width: int) -> None:
     assert page.pdf(format="A4").startswith(b"%PDF")
     page.emulate_media(media="screen")
     page.get_by_role("link", name="Back to employee enquiry").click()
-    page.locator("#guide").get_by_role("link", name="Inspect audit history").click()
-    expect(page.locator(":target")).to_have_id("activity")
+    page.get_by_role("link", name="Inspect audit history").click()
+    expect(page.locator("#activity")).to_be_visible()
     expect(page.locator("#activity")).to_contain_text("Employee approved quotation version 1")
-    page.get_by_role("button", name="Exit guide").click()
+    page.get_by_text("Demo controls", exact=True).press("Enter")
+    page.get_by_role("button", name="Restart in fresh workspace").press("Enter")
+    expect(page.locator("[aria-current=step]")).to_have_text("Request")
+    page.get_by_text("Demo controls", exact=True).press("Enter")
+    page.get_by_role("button", name="Exit guide").press("Enter")
     expect(page.locator("#guide")).to_have_count(0)
-    expect(page.locator("#quotation")).to_contain_text("Approved")
     page.get_by_role("button", name="Return to original workspace").click()
     assert page.locator(".inbox-table tbody tr").all_text_contents() == original_rows
-    page.get_by_role("button", name="Start product demonstration").click()
-    expect(page.locator("#guide")).to_contain_text("Receive the Harbour Packaging request")
-    page.get_by_role("button", name="Return to original workspace").click()
 
 
 def exercise_scenarios(page: Page, address: str) -> None:
+    page.goto(address)
+    original_rows = page.locator(".inbox-table tbody tr").all_text_contents()
     for scenario, sku, total in (
-        ("bearings", "BRG-6205-2RS", "58.65"),
-        ("conflict", "ADP-BSPP-14", ""),
-        ("shortage", "BRG-6203-ZZ", "67.62"),
-        ("contract", "CYL-32-100-DA", "316.25"),
+        ("Simple parts quotation", "BRG-6205-2RS", "58.65"),
+        ("Incompatible product", "ADP-BSPP-14", ""),
+        ("Not enough stock", "BRG-6203-ZZ", "67.62"),
+        ("Customer changes an order", "CYL-32-100-DA", "316.25"),
     ):
-        page.goto(address)
-        page.get_by_label("Demonstration scenario").select_option(scenario)
-        page.get_by_role("button", name="Start product demonstration").press("Enter")
-        page.get_by_role("button", name="Receive test email").click()
-        expect(page.locator("#guide")).to_be_visible()
-        if scenario == "conflict":
+        start_scenario(page, address, scenario)
+        if scenario == "Incompatible product":
             expect(page.locator("#request .issues")).to_contain_text("requested 350 bar, catalogue 250 bar")
             expect(page.get_by_role("button", name="Verify match")).to_have_count(0)
+            # An incompatible request is complete as a demo when the unsafe quotation is blocked.
+            expect(page.locator("#quotation")).to_have_count(0)
+            page.get_by_text("Audit history ·", exact=False).first.click()
+            expect(page.locator("#activity")).to_be_visible()
         else:
             page.get_by_role("checkbox", name=sku, exact=False).check()
-            verify = "Verify for a partial quotation" if scenario == "shortage" else "Verify match"
+            verify = "Verify for a partial quotation" if scenario == "Not enough stock" else "Verify match"
+            expect_decision(page, verify)
             page.get_by_role("button", name=verify, exact=True).click()
             page.get_by_role("button", name="Create draft quotation").click()
             expect(page.locator(".totals")).to_contain_text(total)
             page.get_by_role("button", name="Approve version 1").click()
-            if scenario == "shortage":
+            if scenario == "Not enough stock":
                 expect(page.locator(".quote-table")).to_contain_text("4 units outstanding")
-            if scenario == "contract":
-                page.get_by_role("link", name="Receive revised order for three").click()
-                page.get_by_role("button", name="Receive demo reply").click()
+            if scenario == "Customer changes an order":
+                expect_decision(page, "Record revised order")
+                page.get_by_role("button", name="Record revised order").click()
                 expect(page.locator("#quotation")).to_contain_text("Historical")
+                expect_decision(page, "Confirm revised request")
                 page.get_by_label("Reason for replacing the previous requirements").fill("Buyer confirmed three cylinders.")
                 page.get_by_role("button", name="Confirm revised request").click()
                 page.get_by_role("checkbox", name=sku, exact=False).check()
                 page.get_by_role("button", name="Verify match", exact=True).click()
                 page.get_by_role("button", name="Create draft quotation").click()
-                expect(page.locator(".totals")).to_contain_text("474.38")
+                total = "474.38"
+                expect(page.locator(".totals")).to_contain_text(total)
                 page.get_by_role("button", name="Approve version 2").click()
                 expect(page.locator(".versions")).to_contain_text("316.25")
+            page.get_by_role("link", name="Open customer preview").click()
+            expect(page.locator(".document-sheet .totals")).to_contain_text(total)
+            page.get_by_role("link", name="Back to employee enquiry").click()
+            page.get_by_role("link", name="Inspect audit history").click()
+            expect(page.locator("#activity")).to_be_visible()
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         page.get_by_role("button", name="Return to original workspace").click()
+        assert page.locator(".inbox-table tbody tr").all_text_contents() == original_rows

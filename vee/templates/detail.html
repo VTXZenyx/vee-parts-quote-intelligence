@@ -1,9 +1,11 @@
 {% extends 'base.html' %}
+{% from 'components.html' import employee_styles %}
+{% block page_styles %}{{ employee_styles() }}{% endblock %}
 {% from 'components.html' import icon, date, status, identity, reject %}
 {% block title %}{{ item.id }} · {{ item.subject }}{% endblock %}
 {% block content %}
-<nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ url_for('inbox') }}">{{ icon('arrow-left',15) }} Enquiry inbox</a><span>/</span><span class="mono">{{ item.id }}</span></nav>
-<header class="case-head">
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ url_for('inbox') }}">{{ icon('arrow-left',15) }} Enquiry inbox</a><span>/</span><span class="mono">{{ item.id }}</span><a class="next-step-jump" href="#employee-action">Jump to next step {{ icon('arrow-right',14) }}</a></nav>
+<header class="case-head desk-case-head">
   <div class="case-state"><span class="case-id mono">{{ item.id }}</span>{{ status(item.status) }}{% if item.extraction.urgent %}<span class="urgent">Priority</span>{% endif %}</div>
   <h1>{{ item.subject }}</h1>
   <div class="case-meta"><span>{{ icon('building',15) }}{{ item.customer }}</span><span>{{ icon('calendar',15) }}Received {{ date(item.received_at, true) }}</span></div>
@@ -13,40 +15,55 @@
   {% include 'guide.html' %}
 {% endif %}
 
-<div class="case-grid">
+<div class="case-grid desk-case">
   <div class="case-content">
-    <section class="panel case-section" id="request">
-      <div class="section-heading">{{ icon('mail',20) }}<h2>Customer request</h2></div>
-      <div class="message-top"><strong>{{ item.customer }}</strong><span>{{ item.sender }}</span></div>
-      {% if item.thread[0].recipient %}<small class="message-address">To {{ item.thread[0].recipient }} · Demo email</small>{% endif %}
-      {% if item.basis_inbound %}<p class="message-body">{{ inbound[item.basis_inbound].body }}</p>
-      <details><summary>Original customer request</summary><p class="message-body">{{ item.body }}</p></details>
-      {% else %}<p class="message-body">{{ item.body }}</p>{% endif %}
+    {% if item.quotes and item.status in ['draft_quote', 'rejected', 'approved'] %}{% include 'quotation.html' %}{% endif %}
+    <section class="panel case-section case-brief" id="request" aria-labelledby="request-heading">
+      <div class="section-heading">{{ icon('mail',20) }}<h2 id="request-heading">Customer request</h2></div>
+      <div class="request-note">
+        <div class="message-top"><strong>{{ item.customer }}</strong><span>{{ item.sender }}</span></div>
+        <p class="message-body">{{ inbound[-1].body }}</p>
+        {% if inbound|length > 1 %}<details><summary>Original customer request</summary><p class="message-body">{{ item.body }}</p></details>{% endif %}
+      </div>
       {% if item.attachments %}<div class="attachments"><h3>Attachments</h3>{% for attachment in item.attachments %}<details class="attachment"><summary>{{ icon('paperclip',15) }}{{ attachment.name }}</summary>{% if not item.thread[0].provider and attachment.name == 'inspection-fitting.webp' %}<img class="inspection-photo" src="{{ url_for('static', filename='inspection-fitting.webp') }}" alt="Synthetic inspection photo of a worn fitting on a workshop bench">{% endif %}<p class="message-body">{{ attachment.text }}</p></details>{% endfor %}</div>{% endif %}
-      <h3>What VEE found</h3>
-      {% for line in item.extraction.lines %}
-        <p><strong>{{ line.quantity if line.quantity is not none else 'Unconfirmed quantity of' }} × {{ line.family }}</strong>
-          {% if line.sku %} · {{ line.sku }}{% endif %}</p>
-        {% for match in line.candidates if match.sku == line.sku %}
-          <p>{{ match.name }} · {{ match.availability }} · {{ 'NZD ' ~ match.unit_price if match.unit_price else 'Price unconfirmed' }} · {{ match.price_basis }}</p>
-          {% if line.status == 'verified' and item.status == 'commercial_hold' %}
-            {% set requested = item.extraction.lines|selectattr('sku','equalto',line.sku)|sum(attribute='quantity') %}
-            {% if match.stock is none %}<p>{{ requested }} requested · availability awaits supplier confirmation.</p>
-            {% elif requested > match.stock %}<p>{{ requested }} requested · {{ match.stock }} on hand · {{ requested - match.stock }} awaiting supply.</p>{% endif %}
+      <div class="part-facts">
+        <h3>What VEE found</h3>
+        {% for line in item.extraction.lines %}
+        {% set match = line.candidates|selectattr('sku','equalto',line.sku)|first %}
+        <article class="part-result">
+          <div class="part-label"><strong>{{ match.name if match else line.family }}</strong>{% if line.sku or line.reference %}<small class="mono">{{ line.sku or line.reference }}</small>{% endif %}</div>
+          <dl class="part-values">
+            <div><dt>Requested</dt><dd>{{ line.quantity if line.quantity is not none else 'Unconfirmed' }}{% if line.quantity is not none %} {{ 'unit' if line.quantity == 1 else 'units' }}{% endif %}</dd></div>
+            {% if match %}
+            <div><dt>Stock</dt><dd>{{ match.availability }}</dd></div>
+            <div><dt>Net unit price</dt><dd>{{ 'NZD ' ~ match.unit_price if match.unit_price is not none else 'Unconfirmed' }}</dd>{% if match.unit_price is not none %}<small>{{ match.price_basis }}</small>{% endif %}</div>
+            {% endif %}
+          </dl>
+          {% if match and item.status in ['needs_verification','commercial_hold'] %}
+            <dl class="product-specs">{% for key, val in match.specs.items() %}<div><dt>{{ key|replace('_',' ')|capitalize }}</dt><dd>{{ val }}</dd></div>{% endfor %}</dl>
           {% endif %}
-          {% if item.status in ['needs_verification','commercial_hold'] %}<p class="hint">{% for key, val in match.specs.items() %}{{ key|capitalize }} {{ val }}{{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}
-        {% endfor %}
-        {% if line.issues %}<div class="issues"><strong>Needs attention</strong><ul>{% for issue in line.issues %}<li>{{ issue }}</li>{% endfor %}
-          {% for question in line.questions %}<li>{{ question }}</li>{% endfor %}
-          {% for candidate in line.candidates if candidate.sku == line.reference %}{% for fact in candidate.evidence if fact.startswith('Conflict') %}<li>{{ fact }}</li>{% endfor %}{% endfor %}</ul></div>{% endif %}
-      {% endfor %}
-      <small class="subtle">Local catalogue checks{% if advisory %} · {{ {'mock':'Mock extraction','deterministic':'Deterministic extraction','openai':'Optional AI extraction'}[advisory.method] }}{% endif %}</small>
+          {% if line.issues %}<div class="issues"><strong>{{ 'Specifications conflict' if line.status == 'conflict' else 'Needs attention' }}</strong><ul>
+            {% for candidate in line.candidates if candidate.sku == line.reference %}{% for fact in candidate.evidence if fact.startswith('Conflict') %}<li>{{ fact }}</li>{% endfor %}{% endfor %}
+            {% for issue in line.issues %}<li>{{ issue }}</li>{% endfor %}
+            {% for question in line.questions %}<li>{{ question }}</li>{% endfor %}</ul></div>{% endif %}
+        </article>
+        {% else %}<p class="issues">No part could be identified. Ask the customer for the product reference and quantity.</p>{% endfor %}
+        {% if item.correction_hold %}<div class="issues"><strong>Customer confirmation required</strong>{% for hold in item.correction_hold %}<p>{{ hold.replacement }}</p>{% endfor %}</div>{% endif %}
+      </div>
     </section>
-    {% if item.quotes %}{% include 'quotation.html' %}{% endif %}
+    {% if item.quotes and item.status not in ['draft_quote', 'rejected', 'approved'] %}{% include 'quotation.html' %}{% endif %}
+  </div>
+  <aside class="action-column">
+    <section class="panel action-panel" id="employee-action" tabindex="-1" aria-labelledby="next-action-heading">
+      <div class="action-label" id="next-action-heading">{{ icon('workflow',16) }} Your next step</div>
+      {% include 'actions.html' %}
+    </section>
+  </aside>
+  <div class="case-records">
     <details class="panel record-details" {% if request.args.get('source') %}open{% endif %}><summary>Message analysis and processing options</summary>
     {% include 'findings.html' %}
     </details>
-    <details class="panel record-details"><summary>Catalogue evidence and alternative products</summary>
+    <details class="panel record-details"><summary>Product specifications and alternatives</summary>
     <section class="case-section" id="evidence">
       <div class="section-heading">{{ icon('list-check',20) }}<h2>Technical investigation</h2></div>
       <p class="subtle evidence-intro">Compare the request with the synthetic catalogue. A suggested part requires employee verification.</p>
@@ -74,12 +91,6 @@
       {% endfor %}
     </section></details>
   </div>
-  <aside class="action-column">
-    <section class="panel action-panel" id="employee-action">
-      <div class="action-label">{{ icon('workflow',17) }} Employee review</div>
-      {% include 'actions.html' %}
-    </section>
-  </aside>
   <div class="case-history no-print">
     <details class="panel record-details"><summary>Message history · {{ item.thread|length }} messages</summary><section class="case-section" id="conversation">
       <div class="section-heading">{{ icon('conversation',20) }}<h2>Message history</h2><span class="count">{{ item.thread|length }}</span></div>

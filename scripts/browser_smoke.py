@@ -8,11 +8,15 @@ from threading import Thread
 from playwright.sync_api import Page, expect, sync_playwright
 from werkzeug.serving import make_server
 
+from scripts.browser_catalogue import exercise_catalogue
+from scripts.browser_customer import exercise_customer
 from scripts.browser_dashboard import exercise_dashboard
 from scripts.browser_demo import exercise_demo
 from scripts.browser_guide import exercise_guide, exercise_scenarios
 from scripts.browser_providers import exercise_providers
+from scripts.browser_records import verify_scenario_records
 from scripts.browser_review import exercise_review
+from vee import store
 from vee.web import create_app
 
 
@@ -83,7 +87,9 @@ def exercise(page: Page, address: str) -> None:
 
 def main() -> None:
     with tempfile.TemporaryDirectory() as directory:
-        server = make_server("127.0.0.1", 0, create_app(Path(directory) / "smoke.sqlite3"))
+        database = Path(directory) / "smoke.sqlite3"
+        demos = database.with_name(database.name + ".demos")
+        server = make_server("127.0.0.1", 0, create_app(database))
         worker = Thread(target=server.serve_forever)
         worker.start()
         try:
@@ -101,9 +107,16 @@ def main() -> None:
                 exercise_review(page, address)
                 exercise_demo(page, address)
                 exercise_providers(page, address)
+                original = store.inbox(database)
+                prior = set(demos.glob("*.sqlite3"))
                 exercise_guide(page, address, 1366)
                 exercise_guide(page, address, 390)
                 exercise_scenarios(page, address)
+                verify_scenario_records(set(demos.glob("*.sqlite3")) - prior)
+                assert store.inbox(database) == original
+                exercise_customer(page, address)
+                exercise_catalogue(page, address)
+                assert store.inbox(database) == original
                 assert not errors, errors
                 browser.close()
             print("Browser workflow and mobile layout checks passed.")

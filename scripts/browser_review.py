@@ -91,13 +91,13 @@ def multi_line_quote_and_print(page: Page, address: str) -> None:
 
 def commercial_hold_and_navigation(page: Page, address: str) -> None:
     page.goto(address + "/enquiries/ENQ-1038")
-    expect(page.get_by_role("heading", name="Commercial hold")).to_be_visible()
+    expect(page.get_by_role("heading", name="Stock or pricing needs attention")).to_be_visible()
     page.get_by_role("link", name="Review issues").click()
     expect(page.locator(":target")).to_have_id("evidence")
     expect(page.locator("#evidence .issues")).to_contain_text("stock")
     page.get_by_text("Refresh catalogue evidence", exact=True).click()
     page.get_by_role("button", name="Refresh evidence", exact=True).click()
-    expect(page.get_by_role("heading", name="Commercial hold")).to_be_visible()
+    expect(page.get_by_role("heading", name="Stock or pricing needs attention")).to_be_visible()
     expect(page.get_by_role("button", name="Create draft quotation")).to_have_count(0)
     page.get_by_role("link", name="Enquiry inbox", exact=True).click()
     page.get_by_role("link", name="Waiting for customer", exact=False).click()
