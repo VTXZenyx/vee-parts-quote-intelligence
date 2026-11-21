@@ -1,10 +1,14 @@
 # VEE Parts & Quote Intelligence
 
-A local employee workspace for investigating industrial parts enquiries and reviewing quotations in New Zealand dollars. This development release uses a synthetic mailbox, a 45-SKU warehouse in Hamilton and six fictional customer accounts. Employees can inspect the original request, review evidence, approve questions, record a simulated reply and issue a decision on a versioned quotation.
+A sales-desk prototype for industrial parts distributors. An enquiry such as “two replacement cylinders for our packaging line” gives a salesperson a quantity but too little information to quote safely. VEE puts the original request, missing specifications, catalogue evidence and quotation decision in one local workspace.
+
+![V7 employee dashboard showing six seeded enquiries, their status and next action](docs/images/enquiries.webp)
+
+**Project status:** V7 portfolio and customer-discovery demonstration from VEE AI Software. The six customer accounts, emails, 45 warehouse products, prices and stock levels are fictional. The matching rules, employee approvals, NZD calculations and saved quotation history run locally.
 
 ## Run locally
 
-On a Mac with Python 3.12 installed, open Terminal in the repository and run:
+Use Python 3.12 on Linux or macOS. From the cloned repository:
 
 ```sh
 python3.12 -m venv .venv
@@ -12,76 +16,58 @@ python3.12 -m venv .venv
 .venv/bin/python -m vee.web
 ```
 
-Open the loopback address on port 5050 printed by Flask. On first run the server seeds the local SQLite database at `instance/workspace.sqlite3`. Subsequent starts preserve enquiry history and decisions. Set `VEE_DATABASE` to a different filesystem path for a separate synthetic workspace. The local development server represents one demo employee. Use only on a trusted machine with synthetic records.
+Open **http://127.0.0.1:5050**. First startup creates six enquiries in `vee/instance/workspace.sqlite3`. Restarting keeps your work. To choose another database, set `VEE_DATABASE` to its path before starting. Stop the server with Ctrl+C. The default setup needs no account, API key or environment file.
 
-## Handle a parts request
+## Try a demonstration
 
-1. On **Enquiries**, select **New enquiry**. Choose a sample customer, enter a subject and the full parts request, then select **Save enquiry**.
-2. Check what was requested, the proposed product and any missing details. Use **Approve question** to record a question in the demo inbox. Add the customer’s reply and check the updated result.
-3. Confirm the product against its specifications and select **Create quote**. Review the quantities, net prices, GST and total before approving the version.
-4. If an edit quotes more units than requested, reduce the draft or ask the customer to confirm the quantities. A complete revised request, a new product check and a new quote are required to approve the increase.
-5. Open **Customer quotes** to see approved documents for the chosen account. **Manage products** lets you search the current warehouse by reference, name, specification and group.
+Choose **Try a demo**, pick a scenario and select **Start scenario**. Each scenario opens a separate sample workspace. Choose **Return to original workspace** when finished.
 
-## Start a product demonstration
+| Scenario | What to try |
+| --- | --- |
+| Simple parts quotation | Confirm four bearings, review the list price and approve NZD 58.65 including GST. |
+| Missing product information | Ask for cylinder dimensions, record the reply, check the match and quote NZD 316.25. |
+| Not enough stock | Quote six of ten bearings for NZD 67.62 and keep four outstanding. |
+| Incompatible product | Inspect a 350-bar requirement against a 250-bar rating. The conflict blocks approval. |
+| Customer changes an order | Record the revised request, recheck the part and approve NZD 474.38. The earlier version remains in history. |
 
-Open **Enquiries**, select **Try a demo**, choose a scenario and select **Start scenario**. Each run creates an isolated SQLite workspace. The **Missing product information** Harbour Packaging story takes a request for two replacement cylinders through clarification, technical verification, a draft, employee approval and a printable NZD 316.25 customer preview. The other stories cover a straightforward bearing order, a partial supply, an unsafe pressure request and a revised contract order.
+For a five-minute presentation or screen recording, follow the timed cylinder walkthrough. [Presenter script](SHOWCASE.md)
 
-The enquiry shows the customer’s request, the proposed part or missing details, commercial blockers and the employee decision. Expand the message analysis, catalogue evidence or histories for detail. **Exit guide** keeps the demo open. **Return to original workspace** brings back the original queue. Use the [five-minute presenter script and discovery questions](SHOWCASE.md).
+## From request to customer quote
 
-## Customer quotes and catalogue import
+1. Read the original message. Deterministic rules compare references, quantities and supported attributes against the catalogue. An uncertain match goes to employee review.
+2. Approve a question in the simulated conversation and record the reply. Replaying a delivery preserves the existing thread.
+3. Confirm the product, review available units and prices, and create a draft. Approval of extra units requires a confirmed customer revision and fresh checks.
+4. Preview the current approved quotation for the selected fictional account and print it on A4. **Manage products** shows stock and specifications. In an isolated demo, an employee can preview and activate a synthetic CSV update.
 
-Open **Customer quotes**, choose a fictional account and select **View account**. Open a quotation from the current workspace or a labelled prepared example. The displayed version must still have approval. The presenter controls account selection. Use the document’s Print button for an A4 copy.
+| Missing cylinder specifications | Bearing quotation awaiting approval |
+| --- | --- |
+| ![Employee reviews the original request and approves a follow-up question](docs/images/clarification.webp) | ![Employee checks requested and quoted quantities, GST and total](docs/images/quote-review.webp) |
 
-Open **Manage products** → **Update products from CSV** and choose **Try product updates** if you are in the original workspace. Preview the supplied synthetic CSV, inspect the field differences, then explicitly confirm activation. The catalogue revision belongs to that demo database. **Return to original workspace** switches back. See [the CSV schema and walkthrough](CATALOGUE_IMPORT.md).
+[Approved customer document](docs/images/customer-quote.webp) · [Warehouse product directory](docs/images/warehouse.webp) · [Employee walkthrough](docs/WORKFLOWS.md) · [CSV format and activation](CATALOGUE_IMPORT.md)
 
-## Try the Email inbox
+## Implementation and limits
 
-- **Fictional email** lets you load a prepared scenario or write your own. Use addresses ending in `.example`. Approved clarification threads appear under **Waiting for a customer reply**.
-- **Gmail & Outlook examples** imports a simulated Gmail or Outlook delivery and shows accepted and held receipts. Expand **Delivery details** for identifiers and the original provider record.
-- **Message history** shows fictional email deliveries. Expand a received email and select **Replay delivery** to verify that the conversation remains intact.
-- **Start fresh demo** creates a separate workspace for free exploration. New demo databases are stored next to the original in its `.demos` directory.
+Python 3.12, Flask and Jinja serve the employee interface. SQLite stores enquiries, audit events and quote versions. Decimal arithmetic calculates NZD totals with 15% GST. Playwright runs browser checks in Chromium.
 
-Choose the unavailable adapter to see a commercial hold. Choose the pressure conflict to see a technical block, then use the corrected pressure reply and reconcile it before a part can be verified. The inbox also includes exact bearing references, multiple parts, ambiguous quantities, irrelevant messages and a request to skip approval.
+Default processing works offline after installation. Optional live OpenAI extraction requires the optional SDK, an API key, explicit configuration and an employee submitting the selected message for live processing. This can incur API charges. Offline mock extraction is available for demonstrations. [Processing options](docs/WORKFLOWS.md#optional-live-extraction)
 
-Demo replies attach to a selected enquiry after an approved clarification. An approved demo-email quotation also accepts a complete revised order, which reopens review. Enquiry IDs and message IDs apply within the current demo workspace. The application uses local synthetic addresses, catalogue evidence and commercial records. It supports a single local employee and uses the fixture photograph for manual inspection. Real mail, arbitrary attachment uploads, image inference, ERP stock reservations, and production authentication are outside the demo.
+Use synthetic records on a trusted local computer. Account selection demonstrates customer views. There is no production identity system, real email dispatch, ERP reservation, payment, or live delivery commitment. Photos are available for employee inspection. The synthetic evaluations measure regression behavior on labelled fixtures. Accuracy on independently labelled distributor enquiries is unmeasured.
 
-## Try intelligent enquiry processing
-
-1. Open **Email inbox → Provider fixtures**. Select the Gmail fixture for Harbour’s missing cylinder dimensions first. Expand the held delivery to read the reason, original provider record and normalised envelope.
-2. Import **Harbour · cylinder request**. On the held reply select **Retry association**, then open the linked enquiry. Outlook’s independent cylinder request has the same subject and opens a different enquiry. **Replay provider delivery** exercises the original stored payload.
-3. Expand **Message analysis and processing options**. Under **VEE analysis**, switch between customer messages and follow **Read source message** to inspect the quoted evidence. The default method is deterministic. Open **Change processing method** and select **Mock model** for the offline demonstration. The technical investigation shows candidate catalogue evidence and outstanding restrictions.
-4. Open **Review or correct a finding**. Confirm a reading or flag a correction with a proposed value and reason. A correction reopens technical review and makes existing quote versions historical. Obtain a new customer reply beginning with `Revised request:` and reconcile the complete request before reverifying. The original messages remain available in the thread.
-5. For the complete cylinder request, verify the match, draft the quote and review NZD 316.25 including GST. To see an approval become historical, approve the Outlook bearing quotation and then import **Kauri · corrected bearing quantity**.
-
-### Optional live extraction
-
-The base installation runs offline. An API key by itself enables no network processing. To make live extraction available, install `requirements-ai.txt`, supply `OPENAI_API_KEY` through the process environment, set `VEE_ENABLE_AI=1` and optionally set `VEE_AI_MODEL` (default `gpt-4.1-mini`). Restart VEE. Only an employee selecting **Send this synthetic message to OpenAI** and pressing **Process selected message** initiates an external request. Opening a page, importing a fixture and running the tests use no paid inference.
-
-The adapter sends one selected subject and body. API usage may incur charges. A missing key or SDK, timeout, rate limit or invalid response leaves local findings and manual review available. The displayed method identifies the actual result. SDK request and response handling have been exercised offline. Live model quality, access to the configured model and service behaviour require a separately authorised live evaluation.
-
-## Exercise an enquiry
-
-1. Open **ENQ-1042**, the Harbour Packaging cylinder request. Inspect the attached inspection note, catalogue candidates and missing specifications.
-2. Review or edit the clarification, approve it for the mock mailbox, then record the supplied synthetic reply.
-3. Inspect the bore, stroke, port and mounting evidence. Confirm the catalogue reference to record the employee's technical decision.
-4. Create a draft for two cylinders. The account price is NZD 137.50 each. The draft totals NZD 316.25 including NZD 41.25 GST.
-5. Reject with a reason or approve the displayed version. To revise a rejected quote, edit it and submit a fresh approval. Reopen the enquiry to inspect its history.
-
-ENQ-1040 exercises a multi-product order. Technical comparisons use deterministic catalogue rules. Uploaded photos, live mailbox delivery, ERP access, company authentication and tenant isolation are future milestones. A quotation approval is a local decision only.
-
-## Developer checks
+## Verify the build
 
 ```sh
-.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m pip install -r requirements-dev.txt -r requirements-browser.txt
 .venv/bin/ruff check vee tests scripts evaluation
 .venv/bin/mypy --check-untyped-defs vee evaluation
 .venv/bin/python -m unittest discover -v
+.venv/bin/python -m evaluation.run
+.venv/bin/python -m evaluation.enquiries
+.venv/bin/python -m playwright install chromium
+.venv/bin/python -m scripts.browser_smoke
 ```
 
-The unit and integration tests use temporary databases. Refer to [the test plan](TEST_PLAN.md) for the safety scenarios, [architecture](ARCHITECTURE.md) for data and approval boundaries, and [the backlog](BACKLOG.md) for acceptance criteria for later releases.
+The browser suite also supports a locally installed Chromium. On a minimal Linux machine, Playwright may need system browser dependencies. Tests use temporary synthetic databases. [Test results](TEST_PLAN.md) · [Architecture and recovery](ARCHITECTURE.md)
 
-Run `.venv/bin/python -m evaluation.run` for the synthetic catalogue benchmark and `.venv/bin/python -m evaluation.enquiries` for the offline findings evaluation. For the optional interactive smoke test, install `requirements-browser.txt` in the same environment and use a local Chromium installation (or run `.venv/bin/playwright install chromium`). Then run `.venv/bin/python -m scripts.browser_smoke`. The smoke test starts its own server and database.
+## Licence status
 
-**New enquiry** accepts a synthetic account, subject and original request. Replaying the same intake form records one enquiry and one receipt. Conflicting content for an existing message ID is rejected. **ENQ-1037** contains a generated inspection photograph. Employees can open the attachment and review the missing fitting specifications.
-
-Subject requirements participate in technical review. Include the scope and quantity of each product in the request body. If a revised request changes an earlier measurement, include the confirmed value. For assembly orders, specify the total quantity of each part. Inspect the outstanding issues before approving a replacement. See [the full-system audit](TEST_PLAN.md#full-system-audit-of-the-first-synthetic-milestone) for the verification results.
+The repository currently grants no project-wide reuse licence. The owner is reviewing the distribution terms. Dependency licences apply separately. [Release and rights review](docs/RELEASE-REVIEW.md)

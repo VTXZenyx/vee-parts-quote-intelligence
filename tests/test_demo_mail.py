@@ -137,7 +137,7 @@ class DemoMail(unittest.TestCase):
     def test_preview_and_receipt_validate_demo_addresses(self):
         token = self.form("/demo-email")
         delivery = self.envelope()
-        for address in ("buyer@real.nz", "a@@vee.example", "a@vee.example\r\nBcc: a@other.example"):
+        for address in ("buyer@example.org", "a@@vee.example", "a@vee.example\r\nBcc: a@other.example"):
             response = self.client.post("/demo-email", data={**token, **delivery, "sender": address})
             self.assertEqual(response.status_code, 422)
         response = self.client.post("/demo-email", data={**token, **delivery})
