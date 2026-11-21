@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}Catalogue import{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='catalogue-import.css') }}">{% endblock %}
+{% block content %}
+<div class="import-workspace">
+  {% if unavailable %}
+  <header class="workspace-heading"><h1>Catalogue unavailable</h1></header>
+  <div class="panel case-section">
+    <p role="alert">The local database could not complete this request. Open the catalogue again to check the active revision.</p>
+    <a class="button" href="{{ url_for('catalogue_import.index') }}">Open catalogue</a>
+  </div>
+  {% elif review %}
+  {% set published = review.activated_revision is not none %}
+  {% set stale = not published and review.base_revision != review.active_revision %}
+  <header class="workspace-heading"><div>
+    <h1>{{ 'Catalogue revision ' ~ review.activated_revision if published else 'Review catalogue changes' }}</h1>
+    <p>{% if published and review.activated_revision == review.active_revision %}Active in this demo workspace. New enquiries use these products, stock levels and list prices.{% elif published %}This is a previous import. Revision {{ review.active_revision }} is now active.{% else %}Compare the file with {{ 'revision ' ~ review.base_revision if review.base_revision else 'the bundled catalogue' }}. Expand a product to inspect every field.{% endif %}</p>
+  </div></header>
+  {% if error %}<p class="flash error" role="alert">{{ error }}</p>{% endif %}
+  {% if stale %}<div class="import-warning"><strong>A newer catalogue is active.</strong> Review the file against revision {{ review.active_revision }} before activating it.</div>{% endif %}
+  <section class="panel import-review" aria-label="Products in this import">
+    <div class="import-counts">
+      {% for kind in ['added','updated','retired','unchanged'] if kind != 'unchanged' or review.counts[kind] %}
+      <p><strong>{{ review.counts[kind] }}</strong> {{ kind }}</p>
+      {% endfor %}
+    </div>
+    {% for change in review.changes %}
+    <details class="import-product">
+      <summary>
+        <span class="import-indicator" aria-hidden="true"></span>
+        <span class="import-identity"><strong>{{ change.sku }}</strong><span>{{ change.after.name }}</span></span>
+        <span class="import-kind kind-{{ change.kind }}">{{ change.kind|capitalize }}</span>
+      </summary>
+      <table class="import-comparison"><caption class="sr">{{ change.sku }} product comparison</caption>
+        <thead><tr><th scope="col">Field</th>{% if change.before %}<th scope="col">Before import</th>{% endif %}<th scope="col">{{ 'After import' if published else 'In this file' }}</th></tr></thead>
+        <tbody>{% for row in comparisons[change.sku] %}<tr {% if row.changed and change.before %}class="import-difference"{% endif %}>
+          <th scope="row">{{ row.label }}</th>{% if change.before %}<td>{{ row.old }}</td>{% endif %}<td>{{ row.new }}</td>
+        </tr>{% endfor %}</tbody>
+      </table>
+    </details>
+    {% endfor %}
+  </section>
+  {% if published %}
+  <div class="import-actions"><a class="button primary" href="{{ url_for('inbox') }}">Go to enquiries</a><a class="text-link" href="{{ url_for('catalogue_import.index') }}">Open catalogue import</a></div>
+  {% elif stale %}
+  <div class="import-actions"><a class="button primary" href="{{ url_for('catalogue_import.index') }}">Review a fresh file</a></div>
+  {% else %}
+  <form class="panel import-confirm" method="post" action="{{ url_for('catalogue_import.activate', stage_id=review.id) }}">
+    <h2>Activate this catalogue?</h2>
+    <p>Activation applies the listed changes to this demo workspace. Products omitted from the file keep their current values.</p>
+    {% if review.counts.retired %}<p>Retired products become unavailable for new quotations.</p>{% endif %}
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="import-check"><input type="checkbox" name="confirm" value="yes" required> I have reviewed these changes.</label>
+    <div class="import-actions"><button class="button primary">Activate catalogue revision</button><a href="{{ url_for('catalogue_import.index') }}">Back to file selection</a></div>
+  </form>
+  {% endif %}
+  {% else %}
+  <header class="workspace-heading"><div><h1>Catalogue import</h1><p>Review changes to fictional products, stock and NZD list prices.</p></div></header>
+  {% if error %}<p class="flash error" role="alert">{{ error }}</p>{% endif %}
+  {% if not demo_workspace %}
+  <section class="panel import-entry">
+    <h2>Try a catalogue update</h2>
+    <p>Open an isolated demo workspace to try adding a product, updating a price and retiring a part. Your original catalogue stays in the original workspace.</p>
+    <form method="post" action="{{ url_for('start_demo') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="destination" value="catalogue"><button class="button primary">Open catalogue demo</button></form>
+  </section>
+  {% else %}
+  <section class="panel import-entry">
+    <p class="import-active">Current catalogue <strong>{{ 'Revision ' ~ revision if revision else 'Bundled catalogue' }}</strong></p>
+    <h2>Try the sample file</h2>
+    <p>Our three-row CSV adds a sealed bearing, updates stock and pricing on a shielded bearing and retires an older part.</p>
+    <form method="post" class="import-actions"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="source" value="sample">
+      <button class="button primary">Review sample CSV</button><a href="{{ url_for('catalogue_import.sample') }}" download>Download sample CSV</a>
+    </form>
+    <details class="import-upload" {% if show_upload %}open{% endif %}>
+      <summary>Upload a synthetic CSV</summary>
+      <form enctype="multipart/form-data" method="post">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="source" value="file">
+        <label for="csv-file">Choose a CSV file</label>
+        <p class="hint" id="csv-hint">UTF-8 · {{ max_rows }} products maximum · {{ max_kib }} KiB maximum. Use the sample’s column headings.</p>
+        <input type="file" name="file" id="csv-file" accept=".csv,text/csv" aria-describedby="csv-hint" required>
+        <label class="import-check"><input type="checkbox" name="synthetic" value="yes" required> This file contains only fictional product and pricing data.</label>
+        <button class="button">Review uploaded CSV</button>
+      </form>
+    </details>
+  </section>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

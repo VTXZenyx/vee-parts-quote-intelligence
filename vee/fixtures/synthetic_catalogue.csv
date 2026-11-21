@@ -1,0 +1,4 @@
+sku,family,name,specs,status,stock,price_nzd
+BRG-6209-2RS,Bearing,6209 sealed deep-groove bearing,bore=45 mm;outside diameter=85 mm;width=19 mm;closure=rubber seals,active,16,28.40
+BRG-6206-ZZ,Bearing,6206 deep-groove bearing · metal shields,bore=30 mm;outside diameter=62 mm;width=16 mm;closure=metal shields,active,24,16.20
+BRG-6202-ZZ,Bearing,6202 deep-groove bearing · metal shields,bore=15 mm;outside diameter=35 mm;width=11 mm;closure=metal shields,discontinued,24,8.50
