@@ -1,5 +1,7 @@
 # Present VEE Industrial Supplies in five minutes
 
+**Private presenter material. Exclude this file from any public snapshot.**
+
 VEE helps a distributor turn an incomplete parts request into a quotation an employee can stand behind. This local demonstration uses a fictional Hamilton sales desk, quotes@vee.example, and a synthetic warehouse. Run the app with the local setup in [README.md](README.md).
 
 | Time | Presenter action | What to point out |

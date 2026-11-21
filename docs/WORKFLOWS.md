@@ -1,5 +1,7 @@
 # Employee walkthrough
 
+**Private presenter material. Exclude this file from any public snapshot.**
+
 ## Handle a parts request
 
 1. On **Enquiries**, select **New enquiry**. Choose a sample customer, enter a subject and the full parts request, then select **Save enquiry**.
@@ -34,8 +36,8 @@ Demo replies attach to a selected enquiry after an approved clarification. An ap
 ## Try intelligent enquiry processing
 
 1. Open **Email inbox → Gmail & Outlook examples**. Select the Gmail fixture for Harbour’s missing cylinder dimensions first. Expand the held delivery to read the reason, original provider record and normalised envelope.
-2. Import **Harbour · cylinder request**. On the held reply select **Retry association**, then open the linked enquiry. Outlook’s independent cylinder request has the same subject and opens a different enquiry. **Replay provider delivery** exercises the original stored payload.
-3. Expand **Message analysis and processing options**. Under **VEE analysis**, switch between customer messages and follow **Read source message** to inspect the quoted evidence. The default method is deterministic. Open **Change processing method** and select **Mock model** for the offline demonstration. The technical investigation shows candidate catalogue evidence and outstanding restrictions.
+2. Import **Harbour · cylinder request**. On the held reply select **Match to enquiry again**, then open the linked enquiry. Outlook’s independent cylinder request has the same subject and opens a different enquiry. **Replay delivery** exercises the original stored payload.
+3. Expand **Message analysis and processing options**. Under **Message findings**, switch between customer messages and follow **Read source message** to inspect the quoted evidence. The default method is deterministic. Open **Change processing method** and select **Mock model** for the offline demonstration. The technical investigation shows candidate catalogue evidence and outstanding restrictions.
 4. Open **Review or correct a finding**. Confirm a reading or flag a correction with a proposed value and reason. A correction reopens technical review and makes existing quote versions historical. Obtain a new customer reply beginning with `Revised request:` and reconcile the complete request before reverifying. The original messages remain available in the thread.
 5. For the complete cylinder request, verify the match, draft the quote and review NZD 316.25 including GST. To see an approval become historical, approve the Outlook bearing quotation and then import **Kauri · corrected bearing quantity**.
 

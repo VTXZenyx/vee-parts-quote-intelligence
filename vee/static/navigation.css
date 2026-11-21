@@ -1,13 +1,12 @@
 .topbar-inner { display: grid; grid-template-columns: auto 1fr auto; }
 .workspace-nav { justify-self: center; gap: 3px; }
-.workspace-nav a { border-radius: 6px; padding-inline: 10px; }
+.workspace-nav a { white-space: nowrap; border-radius: 6px; padding-inline: 10px; }
 .workspace-nav a[aria-current] { background: #eaf2ec; text-decoration: none; }
 .compact-feedback { margin-block: 8px; padding-block: 6px; }
 @media (max-width: 1024px) {
-  .topbar .product { display: none; }
   .workspace-nav { justify-self: end; }
 }
-@media (max-width: 740px) {
+@media (max-width: 840px) {
   .topbar-inner { grid-template-columns: auto 1fr; gap: 2px; padding-top: 7px; }
   .topbar .environment { grid-column: 2; grid-row: 1; justify-self: end; }
   .workspace-nav { grid-column: 1 / -1; display: flex; width: 100%; justify-content: space-between; gap: 0; }

@@ -64,7 +64,7 @@
       {% endif %}
       {% if showing %}<p class="prepared-message">{{ values.body }}</p><input type="hidden" name="body" value="{{ values.body }}">
       {% else %}<label for="mail-body">Message</label><textarea id="mail-body" name="body" rows="6" maxlength="8000" required>{{ values.body }}</textarea>{% endif %}
-      {% if not showing %}<details class="mail-id"><summary>Message identifier</summary><p>VEE uses this identifier to recognise duplicate deliveries.</p>
+      {% if not showing %}<details class="mail-id"><summary>Message ID</summary><p>QuoteDesk uses this ID to recognise repeated deliveries.</p>
         <label for="message-id">Message ID</label><input class="mono" id="message-id" name="message_id" value="{{ values.message_id }}" readonly>
       </details>{% endif %}
       <button class="button primary" type="submit">{{ icon('mail',16) }} {{ 'Save customer reply' if item else ('Open enquiry' if showing else 'Add email to enquiries') }}</button>

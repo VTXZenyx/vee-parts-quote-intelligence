@@ -32,7 +32,7 @@
       </div>
       {% if item.attachments %}<div class="attachments"><h3>Attachments</h3>{% for attachment in item.attachments %}<details class="attachment"><summary>{{ icon('paperclip',15) }}{{ attachment.name }}</summary>{% if not item.thread[0].provider and attachment.name == 'inspection-fitting.webp' %}<img class="inspection-photo" src="{{ url_for('static', filename='inspection-fitting.webp') }}" alt="Synthetic inspection photo of a worn fitting on a workshop bench">{% endif %}<p class="message-body">{{ attachment.text }}</p></details>{% endfor %}</div>{% endif %}
       <div class="part-facts">
-        <h3>What VEE understood</h3>
+        <h3>Request details</h3>
         {% for line in item.extraction.lines %}
         {% set match = line.candidates|selectattr('sku','equalto',line.sku)|first %}
         <article class="part-result">
@@ -41,7 +41,7 @@
             <div><dt>Requested quantity</dt><dd>{{ line.quantity if line.quantity is not none else 'Needs confirmation' }}{% if line.quantity is not none %} {{ 'unit' if line.quantity == 1 else 'units' }}{% endif %}</dd></div>
             {% for field, value in line.attributes.items() %}<div><dt>{{ field|replace('_',' ')|capitalize }}</dt><dd>{{ value }}</dd></div>{% endfor %}
           </dl>
-          <h4>What VEE found</h4>
+          <h4>Catalogue results</h4>
           {% if match %}
             <p class="match-name">{{ match.name }} <small class="mono">{{ match.sku }}</small></p>
             <dl class="part-values">

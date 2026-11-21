@@ -1,4 +1,4 @@
-# VEE Parts & Quote Intelligence
+# VEE QuoteDesk
 
 VEE helps an industrial distributor turn an incoming technical enquiry into a traceable, employee-approved quotation. The initial market is small and medium New Zealand distributors of bearings, threaded fasteners, hydraulics, pneumatics and mechanical replacement parts. A sales employee owns the enquiry. A qualified employee resolves technical questions outside the sales employee’s authority.
 
