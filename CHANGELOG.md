@@ -1,5 +1,9 @@
 # Changelog
 
+## V6 · Distributor showcase and catalogue import
+
+Added a scenario picker, inline simulated replies, a simpler employee queue, account-scoped customer previews and a versioned synthetic CSV import in isolated workspaces. Corrected reversed dimension matching, preserved material requirements across revisions and improved narrow-screen quotation layout.
+
 ## 2026-11-20 · Industrial distributor showcase
 
 Added the 45-SKU Hamilton warehouse, five isolated guided scenarios and a printable approved customer preview. Stock-limited single-line quotations require explicit employee acceptance and preserve the balance outstanding. Complete revised customer orders retire the old approval and require reconciliation and a new technical and commercial decision. The enquiry now shows the request and blockers before optional evidence and histories. See [the presenter script](SHOWCASE.md).

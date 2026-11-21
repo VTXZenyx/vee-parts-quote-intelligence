@@ -110,3 +110,9 @@ A single technically resolved SKU can qualify for partial supply when its sole i
 The local demo mailbox accepts a complete revised order on an approved demo-email thread. The same transaction checks its address, subject, message identity and enquiry revision, records the inbound message and reopens technical review. It preserves historical quotes. A human reconciles the replacement request and verifies the new draft before approval. The read-only customer-preview route serves the latest approved snapshot in the active workspace. A missing approval or superseded version returns HTTP 409. The local print view has no send action or public sharing.
 
 The schema remains compatible with existing workspaces. Recovery validates partial quotation decisions and quantities alongside the existing immutable quote, revision and receipt checks.
+
+## V6 catalogue and customer views
+
+Schema version 4 stores staged CSV patches and their activation lineage in the workspace SQLite file. Validation, explicit confirmation and a current base revision precede publication. Matching and pricing read the active parts inside the workflow transaction. Employee approval rechecks evidence. Previously saved quotations retain their original snapshot. Upgrade rechecks older technical decisions and records an audit event when a formerly eligible match becomes unsafe.
+
+Customer mode reads current approved quotations for the selected fictional account. Versioned links bind the source workspace, account and quote version. A separate prepared-examples database is built through the ordinary verification and quotation transitions and published atomically. This presenter-controlled mode provides no real authentication or outbound communication.
