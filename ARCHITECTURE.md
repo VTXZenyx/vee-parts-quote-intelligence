@@ -28,9 +28,9 @@ The demonstration begins with ENQ-1042. Approving a clarification adds a local o
 From the repository root, stop the local application and use a private local directory for the snapshot and recovered database. Both destination paths must be new, in existing directories on a filesystem supporting hard links. Substitute the actual source path if you set `VEE_DATABASE`.
 
 ```bash
-.venv/bin/python -m vee.backup backup instance/workspace.sqlite3 instance/backup-001.sqlite3
-.venv/bin/python -m vee.backup restore instance/backup-001.sqlite3 instance/recovered-001.sqlite3
-VEE_DATABASE=instance/recovered-001.sqlite3 .venv/bin/python -m vee.web
+.venv/bin/python -m vee.backup backup vee/instance/workspace.sqlite3 vee/instance/backup-001.sqlite3
+.venv/bin/python -m vee.backup restore vee/instance/backup-001.sqlite3 vee/instance/recovered-001.sqlite3
+VEE_DATABASE=vee/instance/recovered-001.sqlite3 .venv/bin/python -m vee.web
 ```
 
 Open the recovered workspace and check the last expected audit decision, quote version and total. Both operations open the source read-only and use SQLite’s backup API to capture committed state, including data in a write-ahead log. Before publishing the file, the CLI compares the schema with this code version and checks SQLite integrity and foreign keys. It verifies essential enquiry and quote record shapes, reconciles audit revisions and quote versions, matches each saved quote version and total to its audit event, binds approved status to the recorded version and amount, and recomputes historical totals from saved line prices, quantities and the saved GST rate. A private staging file and an exclusive hard link keep an existing destination intact. A failed check exits nonzero. Choose a different destination when repeating the drill.
