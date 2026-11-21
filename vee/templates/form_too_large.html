@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Shorten the message{% endblock %}
+{% block content %}
+<section class="panel case-section error-state">
+<h1>Shorten the message</h1>
+<p role="alert">This form is too large to save. Go back and shorten the text, keeping the product references, quantities and requirements.</p>
+<a class="button" href="{{ url_for('inbox') }}">Return to enquiries</a>
+</section>
+{% endblock %}

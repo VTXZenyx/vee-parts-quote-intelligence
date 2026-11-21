@@ -81,6 +81,10 @@ def create_app(database: Path | str | None = None) -> Flask:
         app.logger.error("Workspace database operation failed (%s)", getattr(error, "sqlite_errorname", "SQLITE_ERROR"))
         return render_template("unavailable.html"), 503
 
+    @app.errorhandler(413)
+    def form_too_large(_error: Exception) -> tuple[str, int]:
+        return render_template("form_too_large.html"), 413
+
     @app.errorhandler(404)
     def page_missing(_error: Exception) -> tuple[str, int]:
         return render_template("not_found.html"), 404

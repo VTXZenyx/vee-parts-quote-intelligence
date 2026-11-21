@@ -71,3 +71,15 @@ class WorkspaceRoutes(unittest.TestCase):
         self.assertEqual(result.status_code, 503)
         self.assertIn(b"Reload the enquiry", result.data)
         self.assertEqual(store.detail(self.database, key), original)
+
+    def test_oversized_message_offers_recovery_and_preserves_enquiries(self):
+        from vee import store
+
+        self.client.get("/")
+        with self.client.session_transaction() as session:
+            token = session["csrf"]
+        before = store.inbox(self.database)
+        response = self.client.post("/enquiries/new", data={"csrf": token, "body": "a" * 33000})
+        self.assertEqual(response.status_code, 413)
+        self.assertIn(b"Shorten the message", response.data)
+        self.assertEqual(store.inbox(self.database), before)
