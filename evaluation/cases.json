@@ -66,5 +66,14 @@
   {"id":"showcase-restricted-agreed-rate","text":"4 x BRG-6205-2RS","account":"Contract Only Engineering","status":["verified"],"skus":["BRG-6205-2RS"],"ready":true,"total":"46.00"},
   {"id":"showcase-thread-mismatch","text":"1 x ADP-BSPT-38, BSPP thread","status":["conflict"],"skus":[null],"ready":false},
   {"id":"showcase-fastener-grade","text":"1 x BLT-M12-50-G88, grade 10.9","status":["conflict"],"skus":[null],"ready":false},
-  {"id":"showcase-revised-contract","text":"3 x CYL-32-100-DA","account":"Harbour Packaging","status":["verified"],"skus":["CYL-32-100-DA"],"ready":true,"total":"474.38"}
+  {"id":"showcase-revised-contract","text":"3 x CYL-32-100-DA","account":"Harbour Packaging","status":["verified"],"skus":["CYL-32-100-DA"],"ready":true,"total":"474.38"},
+  {"id":"v6-adjacent-cylinder-labels","text":"1 x CYL-32-100-DA, stroke 32 mm bore 100 mm","status":["conflict"],"skus":[null],"ready":false,"attributes":{"stroke":"32 mm","bore":"100 mm"}},
+  {"id":"v6-adjacent-fastener-labels","text":"1 x BLT-M12-50-G88, pitch 50 mm length 1.75 mm","status":["conflict"],"skus":[null],"ready":false,"attributes":{"pitch":"50 mm","length":"1.75 mm"}},
+  {"id":"v6-adjacent-bearing-labels","text":"1 x BRG-6205-2RS, OD 25 mm bore 52 mm","status":["conflict"],"skus":[null],"ready":false,"attributes":{"bore":"52 mm","outside diameter":"25 mm"}},
+  {"id":"v6-compatible-prefix-dimensions","text":"1 x CYL-32-100-DA, stroke 100 mm bore 32 mm","status":["verified"],"skus":["CYL-32-100-DA"],"ready":true,"attributes":{"bore":"32 mm","stroke":"100 mm"},"total":"178.25"},
+  {"id":"v6-compatible-suffix-dimensions","text":"1 x CYL-32-100-DA, 100 mm stroke 32 mm bore","status":["verified"],"skus":["CYL-32-100-DA"],"ready":true,"attributes":{"bore":"32 mm","stroke":"100 mm"},"total":"178.25"},
+  {"id":"v6-conflicting-property-class","text":"1 x BLT-M12-50-G88, property class 10.9","status":["conflict"],"skus":[null],"ready":false,"attributes":{"grade":"10.9"}},
+  {"id":"v6-multiple-working-pressures","text":"1 x ADP-BSPP-14, working pressure 200 bar, working pressure 350 bar","status":["conflict"],"skus":[null],"ready":false,"attributes":{"pressure":"200 bar / 350 bar"}},
+  {"id":"v6-unsupported-bearing-material","text":"1 x BRG-6205-2RS, phosphor bronze cage","status":["review"],"skus":[null],"ready":false},
+  {"id":"v6-invoice-gst-rounding","text":"1 x BRG-6205-ZZ and 1 x BRG-6202-ZZ","status":["verified","verified"],"skus":["BRG-6205-ZZ","BRG-6202-ZZ"],"ready":true,"total":"23.00"}
 ]

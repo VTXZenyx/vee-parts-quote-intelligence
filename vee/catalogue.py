@@ -341,6 +341,13 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
     found: dict[str, set[str]] = {}
     residual = text
 
+    def measurement(number: str, unit: str) -> str:
+        # Remove formatting zeros without rounding to Decimal context precision.
+        number = format(Decimal(number), "f")
+        if "." in number:
+            number = number.rstrip("0").rstrip(".")
+        return number + unit
+
     def capture(
         field: str, pattern: str, suffix: str = "", fixed: str | None = None
     ) -> None:
@@ -349,12 +356,7 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
         def substitute(m: re.Match[str]) -> str:
             if fixed is None:
                 number = next(s for s in m.groups() if s is not None)
-                if suffix:
-                    # Strip formatting zeros without rounding a measurement to decimal context precision.
-                    number = format(Decimal(number), "f")
-                    if "." in number:
-                        number = number.rstrip("0").rstrip(".")
-                value = number + suffix
+                value = measurement(number, suffix) if suffix else number
             else:
                 value = fixed
             found.setdefault(field, set()).add(value)
@@ -362,20 +364,23 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
 
         residual = re.sub(pattern, substitute, residual, flags=re.IGNORECASE)
 
+    # Bind complete pairs in source order. Parsing one field at a time can take
+    # "32 mm bore" out of "stroke 32 mm bore 100 mm" and reverse both assignments.
+    label = r"(outside diameter|od|bore|stroke|width|length|pitch)"
     dimension = r"(\d+(?:\.\d+)?)\s*mm\b"
-    for key, label in (
-        ("bore", "bore"),
-        ("stroke", "stroke"),
-        ("width", "width"),
-        ("outside diameter", "(?:outside diameter|OD)"),
-        ("length", "length"),
-        ("pitch", "pitch"),
-    ):
-        capture(
-            key,
-            rf"\b{label}\s*[:=]?\s*{dimension}|(?<![\w./+-]){dimension}\s*{label}\b",
-            " mm",
-        )
+
+    def read_dimension(match: re.Match[str]) -> str:
+        field, number = (match[1], match[2]) if match[1] else (match[4], match[3])
+        field = field.casefold()
+        if field == "od":
+            field = "outside diameter"
+        found.setdefault(field, set()).add(measurement(number, " mm"))
+        return " "
+
+    residual = re.sub(
+        rf"\b{label}\s*[:=]?\s*{dimension}|(?<![\w./+-]){dimension}\s*{label}\b",
+        read_dimension, residual, flags=re.IGNORECASE,
+    )
     for field, forms in {
         "action": ["double acting", "single acting"],
         "mount": ["foot mount", "clevis mount", "flange mount"],
@@ -401,7 +406,7 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
     )
     for size in ("1/4", "3/8", "1/2"):
         capture("size", rf'(?<![\w/]){size}\s*(?:in(?:ch(?:es)?)?\b|")', fixed=f"{size} in")
-    capture("grade", r"\bgrade\s+(\d+\.\d+)\b")
+    capture("grade", r"\b(?:grade|property class)\s+(\d+\.\d+)\b")
     return (
         {k: " / ".join(sorted(v)) for k, v in found.items()},
         {k for k, v in found.items() if len(v) > 1},

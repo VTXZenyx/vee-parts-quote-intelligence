@@ -173,8 +173,21 @@ def _omitted_attributes(previous, active, account):
     required: dict[str, set[str]] = {}
     for message in previous:
         for line in analyse(message.removeprefix(REVISED_HEADER), account)["lines"]:
-            if line["attributes"]:
-                required.setdefault(line["family"], set()).update(line["attributes"])
+            fields = required.setdefault(line["family"], set())
+            fields.update(line["attributes"])
+            # Keep named requirements even when their unit or value could not be
+            # compared. A later exact SKU alone cannot resolve an imperial bore,
+            # pressure in psi, or a material absent from the catalogue.
+            text = line["text"].casefold()
+            fields.update(re.findall(r"\b(?:bore|stroke|width|length|pitch|outside diameter)\b", text))
+            if re.search(r"\bod\b", text):
+                fields.add("outside diameter")
+            if re.search(r"\bpressure\b|\d\s*(?:psi[ag]?|[kmg]?pa|m?bar)\b", text):
+                fields.add("pressure")
+            if re.search(r"\b(?:grade|property class)\b", text):
+                fields.add("grade")
+            if re.search(r"\b(?:material|steel|brass|bronze|alumini?um|nylon|ceramic)\b", text):
+                fields.add("material")
     # An unallocated measurement in a separate reply still needs resolution.
     unallocated = required.get("Unidentified", set())
     return sorted({field for line in active["lines"]
