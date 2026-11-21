@@ -23,3 +23,5 @@ V3 delivers local Gmail and Graph fixtures, transactional duplicate handling, ex
 V4 brings the guided demo, employee queues, source evidence and quote review into a consistent desktop and mobile interface. The next employee milestone is an observed synthetic trial with a distributor reviewer. Record completion time, errors and blocked cases before refining broader extraction coverage.
 
 V5 supplies five repeatable distributor scenarios and an approved customer preview. The next milestone is an observed owner and estimator walkthrough, followed by agreement on the evidence, boundaries and price of one limited pilot.
+
+V6 added staged warehouse imports and account-specific quotation previews. V7 adds searchable products, clearer clarification rounds and customer confirmation before approving extra units. The next milestone is a first-time employee walkthrough with synthetic enquiries, including a quantity increase and a blocked technical match.

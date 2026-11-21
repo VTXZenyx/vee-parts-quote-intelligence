@@ -4,6 +4,7 @@ The local product uses synthetic data. Work in the following order unless a fail
 
 | Priority | Task | Acceptance criteria |
 | --- | --- | --- |
+| P1 | Validate quantity confirmation and product search with sales staff | Observe two staff members quote four bearings, handle an increase to six and locate a replacement by dimensions. Record incorrect decisions and recovery steps before planning live integration. |
 | P1 | Run an observed sales-desk demonstration with one NZ distributor | Ask an owner and an estimator to complete the cylinder and shortage cases from the dashboard with synthetic data. Record where they hesitate, what evidence they need and whether they would pay for a narrowly scoped pilot. Agree one measurable pilot acceptance criterion. |
 | P1 | Measure extraction on independently reviewed distributor enquiries | With appropriate data rights, label product lines, quantities, uncertainty and source spans. Compare deterministic and authorised live inference on the same held-out cases. Report unsafe recommendations, employee correction time and cost per enquiry before proposing a mailbox pilot. |
 | P1 | Expand technical evidence and rule coverage | Add fixed examples for bearings, threaded fasteners and hydraulic fittings. For each, show the specific catalogue evidence for each governing attribute. A missing rating, mismatched standard or contradictory measurement blocks technical approval. A qualified industrial reviewer signs off the expected outcomes. |

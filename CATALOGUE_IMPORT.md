@@ -1,14 +1,14 @@
 # Try a synthetic catalogue update
 
-Open **Catalogue import** in the local VEE app. In the original workspace, select **Open catalogue demo** to create an isolated database. If you are already in a demo workspace, the import applies to that workspace. Use only fictional data.
+Open **Manage products** → **Update products from CSV** in the local VEE app. In the original workspace, select **Try product updates** to create an isolated database. If you are already in a demo workspace, the import applies to that workspace. Use only fictional data.
 
 1. Select **Review sample CSV**. The supplied file adds `BRG-6209-2RS`, updates `BRG-6206-ZZ` from 18 to 24 units and NZD 15.75 to 16.20 per unit, and retires `BRG-6202-ZZ`.
 2. Expand a product to compare every field. A retired SKU is unavailable for new quotations. Products omitted from the CSV keep their current values.
-3. Check **I have reviewed these changes** and select **Activate catalogue revision**. The result shows the revision number. Returning to file selection before activation leaves the active catalogue intact.
+3. Check **I have reviewed these changes** and select **Apply product changes**. The result shows the revision number. Returning to file selection before activation leaves the active catalogue intact.
 4. Choose **Go to enquiries**, open **New enquiry** and enter `2 x BRG-6209-2RS` for Kauri Engineering. Verify the part and create a draft. At the sample list price of NZD 28.40, the two bearings total NZD 65.32 including NZD 8.52 GST. Availability is synthetic and delivery remains unconfirmed.
 5. Select **Return to original workspace** when finished. Start another catalogue demo to repeat the sample from the bundled catalogue.
 
-To try the upload control, choose **Download sample CSV**, expand **Upload a synthetic CSV**, choose the downloaded file, tick the fictional-data confirmation and select **Review uploaded CSV**. The released [synthetic catalogue sample](vee/fixtures/synthetic_catalogue.csv) is also available in the repository.
+To try the upload control, choose **Download sample CSV**, expand **Upload a sample CSV**, choose the downloaded file, tick the fictional-data confirmation and select **Review uploaded CSV**. The released [synthetic catalogue sample](vee/fixtures/synthetic_catalogue.csv) is also available in the repository.
 
 ## File format
 

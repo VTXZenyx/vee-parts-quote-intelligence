@@ -116,3 +116,7 @@ The schema remains compatible with existing workspaces. Recovery validates parti
 Schema version 4 stores staged CSV patches and their activation lineage in the workspace SQLite file. Validation, explicit confirmation and a current base revision precede publication. Matching and pricing read the active parts inside the workflow transaction. Employee approval rechecks evidence. Previously saved quotations retain their original snapshot. Upgrade rechecks older technical decisions and records an audit event when a formerly eligible match becomes unsafe.
 
 Customer mode reads current approved quotations for the selected fictional account. Versioned links bind the source workspace, account and quote version. A separate prepared-examples database is built through the ordinary verification and quotation transitions and published atomically. This presenter-controlled mode provides no real authentication or outbound communication.
+
+## V7 customer quantity confirmation
+
+The approval transaction compares quote lines against quantities in the current customer requirements. A saved draft, approval form or employee note cannot raise those limits. The confirmation action records an outbound question and retains the existing quote version. The customer must provide a complete revised request, which is reconciled and verified before a new draft can be approved. Schema version 5 rechecks existing decisions, retains the historical snapshots and records reopened approvals. The workspace-scoped warehouse directory reads only published catalogue data.
