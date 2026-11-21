@@ -2,7 +2,8 @@
 {% set ref = ('EX-' if example else 'Q-') ~ item.id[4:] ~ '-V' ~ item.quotes[-1].version %}
 <!doctype html>
 <html lang="en-NZ"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Quotation {{ ref }} · VEE Industrial Supplies</title>
+<title>Quotation {{ ref }} · VEE Industrial Supplies · VEE QuoteDesk</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='quotedesk-mark.png') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='workspace.css') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='customer.css') }}">
 <script defer src="{{ url_for('static',filename='workspace.js') }}"></script></head>
@@ -25,5 +26,6 @@
 <strong class="mono">{{ ref }}</strong></header>
 {% include 'quotation.html' %}
 <footer class="document-terms"><h3>Supply terms</h3><p>Stock is unreserved. Delivery requires supplier confirmation. Any outstanding quantity requires a separate confirmed offer.</p>
-<p>Demo Mode · No order is placed or payment taken.</p></footer>
+<p>Demo Mode · No order is placed or payment taken.</p>
+<p>Prepared with VEE QuoteDesk</p></footer>
 </article></main></body></html>

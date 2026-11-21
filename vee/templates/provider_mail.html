@@ -23,7 +23,7 @@
       </dl>
       <p class="message-body">{{ m.body }}</p>
       {% for file in m.attachments %}<p>{{ file.name }} · {{ file.type }} · {{ file.size }} bytes · Metadata only</p>{% endfor %}
-      <details><summary>Original provider message</summary><pre class="source-json">{{ row.raw }}</pre></details></details>
+      <details><summary>Original email record</summary><pre class="source-json">{{ row.raw }}</pre></details></details>
       <div class="mail-links">
         {% if row.enquiry_id %}<a class="button compact" href="{{ url_for('enquiry', id=row.enquiry_id) }}">Open {{ row.enquiry_id }}</a>{% endif %}
         {% for op in (['replay','retry'] if row.status == 'held' else ['replay']) %}

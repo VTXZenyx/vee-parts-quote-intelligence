@@ -5,7 +5,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#123b33">
-  <title>{% block title %}Enquiries{% endblock %} · VEE Parts &amp; Quote Intelligence</title>
+  <title>{% block title %}Enquiries{% endblock %} · VEE QuoteDesk</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='quotedesk-mark.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='navigation.css') }}">
   {% block page_styles %}{% endblock %}
@@ -15,9 +16,9 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="topbar">
   <div class="shell topbar-inner">
-    <a class="brand" href="{{ url_for('inbox') }}" aria-label="VEE workspace home">
+    <a class="brand" href="{{ url_for('inbox') }}" aria-label="VEE QuoteDesk home">
       <span class="brandmark" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="brandname">VEE</span><span class="product">Parts &amp; Quote Intelligence</span>
+      <span class="brandname">VEE QuoteDesk</span>
     </a>
     <nav class="workspace-nav" aria-label="Workspace">
       <a href="{{ url_for('inbox') }}" {% if request.endpoint in ('inbox', 'enquiry', 'new_enquiry') %}aria-current="page"{% endif %}>Enquiries</a>
@@ -40,6 +41,6 @@
 {% block content %}{% endblock %}
 {% if guide %}{{ workspace_switch() }}{% endif %}
 </main>
-<footer class="shell footer"><span>VEE Parts &amp; Quote Intelligence</span><span>{{ icon('flask', 14) }} Demo Mode · Fictional customers, stock and prices</span></footer>
+<footer class="shell footer"><span>VEE QuoteDesk by VEE AI Software</span><span>{{ icon('flask', 14) }} Demo Mode · Fictional emails, customers, stock and prices</span></footer>
 </body>
 </html>

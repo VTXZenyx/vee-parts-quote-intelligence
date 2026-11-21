@@ -37,8 +37,7 @@ h4 { font-size: .88rem; }
 .brandmark i { display: block; transform: skew(-22deg); width: 4px; height: 15px; border-radius: .6px; background: #d2ed92; }
 .brandmark i:first-child { height: 9px; margin-top: 6px; }
 .brandmark i:nth-child(2) { height: 12px; margin-top: 3px; }
-.brandname { font-size: 24px; font-weight: 800; line-height: 1; letter-spacing: -.065em; }
-.product { border-left: 1px solid var(--line); padding-left: 15px; margin-left: 5px; font-size: .91rem; color: #465d54; font-weight: 550; }
+.brandname { color: #163f35; font-size: 21px; font-weight: 750; line-height: 1.15; letter-spacing: -.035em; white-space: nowrap; }
 .environment { gap: 8px; font-family: var(--mono); font-size: .72rem; font-weight: 500; }
 .environment span { width: 7px; height: 7px; background: #728d42; border-radius: 50%; box-shadow: 0 0 0 3px #eff4e6; }
 
@@ -234,7 +233,6 @@ details form { margin-top: 12px; }
   .jump { display: none; }
 }
 @media (max-width: 570px) {
-  .product { display: none; }
   .inbox-table td:nth-child(3) { min-width: 0; }
   .status { white-space: normal; }
   .environment { font-size: .67rem; }
