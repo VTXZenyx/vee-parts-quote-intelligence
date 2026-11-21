@@ -2,13 +2,13 @@
 
 import json
 import re
-import sqlite3
-from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
 from vee.catalogue import FAMILIES, analyse, build_quote, current_record, partial_offer
+from vee.catalogue_import import IMPORT_SCHEMA, active_parts, published_revision
+from vee.database import transaction as _transaction
 
 SEEDS: tuple[tuple[str, str, str, str, list[dict[str, str]], str], ...] = (
     ("ENQ-1042", "Harbour Packaging", "Replacement cylinders for packaging line",
@@ -32,7 +32,7 @@ SEEDS: tuple[tuple[str, str, str, str, list[dict[str, str]], str], ...] = (
 
 ALLOWED = {
     "needs_clarification": {"save_clarification", "approve_clarification", "reject_clarification",
-                            "reconcile_requirements"},
+                            "reconcile_requirements", "refresh_evidence"},
     "awaiting_reply": {"simulate_reply"},
     "needs_verification": {"verify_match", "reject_match", "refresh_evidence"},
     "verified": {"create_quote", "refresh_evidence"},
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS quotes (
 """
 
 
-SCHEMA = V2_SCHEMA + """
+V3_SCHEMA = V2_SCHEMA + """
 CREATE TABLE IF NOT EXISTS provider_mail (
     id INTEGER PRIMARY KEY,
     provider TEXT NOT NULL,
@@ -84,24 +84,12 @@ CREATE TABLE IF NOT EXISTS provider_mail (
 """
 
 
+SCHEMA_VERSION = 4
+SCHEMA = V3_SCHEMA + IMPORT_SCHEMA
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
-
-
-@contextmanager
-def _transaction(path: str | Path, write: bool = False):
-    db = sqlite3.connect(path, timeout=10)
-    db.row_factory = sqlite3.Row
-    try:
-        db.execute("PRAGMA foreign_keys=ON")
-        db.execute("BEGIN IMMEDIATE" if write else "BEGIN")
-        yield db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
 
 
 def _audit(db, item, actor, action, message, at):
@@ -169,10 +157,10 @@ def _unresolved_subject(item, analysis):
     return len(matches) != 1 or len(mentioned) > 1
 
 
-def _omitted_attributes(previous, active, account):
+def _omitted_attributes(previous, active, account, parts):
     required: dict[str, set[str]] = {}
     for message in previous:
-        for line in analyse(message.removeprefix(REVISED_HEADER), account)["lines"]:
+        for line in analyse(message.removeprefix(REVISED_HEADER), account, parts=parts)["lines"]:
             fields = required.setdefault(line["family"], set())
             fields.update(line["attributes"])
             # Keep named requirements even when their unit or value could not be
@@ -195,7 +183,9 @@ def _omitted_attributes(previous, active, account):
                    if field not in line["attributes"]})
 
 
-def _investigate(item):
+def _investigate(db, item):
+    item["catalogue_revision"] = published_revision(db)
+    parts = active_parts(db, item["catalogue_revision"])
     # Only inbound customer messages establish requirements.
     messages = [entry["body"] for entry in item["thread"] if entry["direction"] == "inbound"]
     basis = item.get("basis_inbound", 0)
@@ -204,13 +194,13 @@ def _investigate(item):
         active[0] = active[0][len(REVISED_HEADER):].strip()
     item["revised_request"] = ""
     content = "\n".join(active)
-    analysis = analyse(content, account=item["customer"])
+    analysis = analyse(content, account=item["customer"], parts=parts)
     if len(active) > 1 and active[-1].casefold().startswith(REVISED_HEADER.casefold()):
         item["revised_request"] = active[-1][len(REVISED_HEADER):].strip()
         _require_review(analysis, "Customer proposed a complete revised request.",
                         "Please confirm the revised list before replacing the previous request.")
     elif len(active) > 1:
-        original = analyse(active[0], account=item["customer"])
+        original = analyse(active[0], account=item["customer"], parts=parts)
         if len(original["lines"]) != len(analysis["lines"]):
             _require_review(analysis, "The reply introduces a separate item or quantity requiring reconciliation.",
                             "Please reply with 'Revised request:' followed by the complete list of products and quantities.")
@@ -232,7 +222,7 @@ def _investigate(item):
             _require_review(analysis, "A changed email subject contains unresolved requirements.",
                             "Please confirm the requirements from the changed subject.")
     if basis:
-        omitted = _omitted_attributes(messages[:basis], analysis, item["customer"])
+        omitted = _omitted_attributes(messages[:basis], analysis, item["customer"], parts)
         if omitted:
             fields = ", ".join(omitted)
             _require_review(analysis, f"Earlier specifications need explicit confirmation: {fields}.",
@@ -253,6 +243,9 @@ def _investigate(item):
 
 def init(path: str | Path) -> None:
     with _transaction(path, write=True) as db:
+        version = db.execute("PRAGMA user_version").fetchone()[0]
+        if version > SCHEMA_VERSION:
+            raise ValueError("This workspace requires a newer version of VEE.")
         for statement in SCHEMA.split(";"):
             if statement.strip():
                 db.execute(statement)
@@ -262,10 +255,9 @@ def init(path: str | Path) -> None:
             received = f"2026-11-17T{15-index:02d}:10:00+00:00"
             _insert_enquiry(db, key, customer, subject, body, attachments, reply, received)
 
-        if db.execute("PRAGMA user_version").fetchone()[0] < 2:
+        if version < SCHEMA_VERSION:
             _recheck_legacy_decisions(db)
-        if db.execute("PRAGMA user_version").fetchone()[0] < 3:
-            db.execute("PRAGMA user_version=3")
+            db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 
 def _recheck_legacy_decisions(db):
@@ -273,12 +265,14 @@ def _recheck_legacy_decisions(db):
     for row in db.execute("SELECT state FROM enquiries").fetchall():
         item = json.loads(row["state"])
         previous = item["extraction"]
-        if not previous["ready"]:
+        old_offer = partial_offer(previous)
+        if not previous["ready"] and not old_offer:
             continue
-        _investigate(item)
+        _investigate(db, item)
         old_items = [(line["sku"], line["quantity"]) for line in previous["lines"]]
         current_items = [(line["sku"], line["quantity"]) for line in item["extraction"]["lines"]]
-        if old_items == current_items and item["extraction"]["ready"]:
+        if (old_items == current_items and previous["ready"] == item["extraction"]["ready"]
+                and old_offer == partial_offer(item["extraction"])):
             continue
         item.update(selected_skus=[], selected_sku=None)
         item["revision"] += 1
@@ -302,7 +296,7 @@ def _insert_enquiry(db, key, customer, subject, body, attachments, reply, receiv
     if envelope:
         item["sender"] = envelope["sender"]
         item["thread"][0].update(envelope)
-    _investigate(item)
+    _investigate(db, item)
     db.execute("INSERT INTO enquiries VALUES (?,?,?)", (key, 1, json.dumps(item)))
     receipt = "Synthetic customer enquiry recorded."
     if envelope and envelope.get("provider"):
@@ -388,7 +382,7 @@ def _receive(path, message_id, customer, subject, body, *, envelope=None, enquir
                 _record_message(item, "inbound", body, at)
                 item["thread"][-1].update(envelope)
                 item.update(selected_skus=[], selected_sku=None, sample_reply="")
-                _investigate(item)
+                _investigate(db, item)
                 _save_revision(db, item, "Mock mailbox", "recheck_requirements",
                                "Received a complete revised order. Earlier approval is historical.", at)
                 return item["id"], False
@@ -453,15 +447,46 @@ def _result(db, item):
     return item
 
 
+def queue_summaries(path: str | Path) -> list[dict]:
+    """Read the inbox fields without loading quote versions, evidence or events."""
+    with _transaction(path) as db:
+        rows = db.execute("""
+            SELECT id, json_extract(state, '$.customer') AS customer,
+                   json_extract(state, '$.subject') AS subject,
+                   json_extract(state, '$.status') AS status,
+                   json_extract(state, '$.received_at') AS received_at,
+                   json_extract(state, '$.extraction.urgent') AS urgent
+              FROM enquiries ORDER BY id DESC
+        """)
+        return [{**dict(row), "extraction": {"urgent": bool(row["urgent"])}} for row in rows]
+
+
 def inbox(path: str | Path) -> list[dict]:
     with _transaction(path) as db:
         return [_result(db, json.loads(row["state"])) for row in
                 db.execute("SELECT state FROM enquiries ORDER BY id DESC")]
 
 
+def _newly_resolved(db, item):
+    if (item["status"] != "needs_clarification" or item["extraction"]["ready"]
+            or item.get("correction_hold") or item.get("revised_request")):
+        return False
+    # Old, unopened backups can still be inspected through the read-only API.
+    if db.execute("PRAGMA user_version").fetchone()[0] < SCHEMA_VERSION:
+        return False
+    if item.get("catalogue_revision", 0) >= published_revision(db):
+        return False
+    refreshed = item.copy()
+    _investigate(db, refreshed)
+    return refreshed["status"] in {"needs_verification", "commercial_hold"}
+
+
 def detail(path: str | Path, id: str) -> dict:
     with _transaction(path) as db:
-        return _result(db, _load(db, id))
+        item = _load(db, id)
+        if _newly_resolved(db, item):
+            item["catalogue_refresh_available"] = True
+        return _result(db, item)
 
 
 def _text(value, label, *, required=True):
@@ -480,7 +505,7 @@ def _technical_evidence(item):
             if candidate["sku"] == line["sku"]]
 
 
-def _verified_skus(item, *, partial=False):
+def _verified_skus(item, parts, *, partial=False):
     analysis = item["extraction"]
     skus = [line["sku"] for line in analysis["lines"]]
     if ((not analysis["ready"] and not (partial and partial_offer(analysis))) or not skus or any(not sku for sku in skus)
@@ -489,21 +514,27 @@ def _verified_skus(item, *, partial=False):
     evidence = _technical_evidence(item)
     if len(evidence) != len(skus):
         raise ValueError("Refresh the catalogue evidence for every selected product.")
-    for saved in evidence:
-        current = current_record(saved["sku"], item["customer"])
+    for line, saved in zip(analysis["lines"], evidence):
+        # New shelf lines can make a previously unique specification match ambiguous.
+        if not line.get("reference"):
+            fresh = analyse(line["text"], item["customer"], parts=parts)["lines"][0]
+            if fresh["sku"] != line["sku"]:
+                raise ValueError("Refresh the evidence. The catalogue match has changed.")
+        current = current_record(saved["sku"], item["customer"], parts=parts)
         if not current or any(current.get(k) != saved.get(k)
                               for k in ("sku", "name", "family", "specs", "source", "discontinued")):
             raise ValueError("Catalogue specifications changed. Refresh the evidence and verify each product again.")
-        if partial and any(current.get(k) != saved.get(k) for k in ("stock", "unit_price", "price_basis")):
-            raise ValueError("Refresh the changed stock or price before verifying a partial quotation.")
+        if any(current.get(k) != saved.get(k) for k in ("stock", "unit_price", "price_basis", "commercial_source")):
+            raise ValueError("Refresh the changed stock or price and verify the product again.")
     return skus
 
 
-def _commercial(item, quantities=None):
+def _commercial(db, item, quantities=None):
+    parts = active_parts(db)
     partial = not item["extraction"]["ready"]
-    if _verified_skus(item, partial=partial) != item["selected_skus"]:
+    if _verified_skus(item, parts, partial=partial) != item["selected_skus"]:
         raise ValueError("Verify each selected product before preparing a quotation.")
-    return build_quote(item["extraction"], account=item["customer"], quantities=quantities, partial=partial)
+    return build_quote(item["extraction"], account=item["customer"], quantities=quantities, partial=partial, parts=parts)
 
 
 def _latest_quote(db, item):
@@ -539,9 +570,10 @@ def _save_quote(db, item, action, fields, at):
         quantities = _edited_quantities(fields, previous)
         notes = previous["notes"]
     notes = _text(fields.get("notes", notes), "quotation notes", required=False)
-    quote = _commercial(item, quantities)
+    quote = _commercial(db, item, quantities)
     first = quote["lines"][0]
-    quote.update(version=version, notes=notes, created_at=at, technical_evidence=_technical_evidence(item), sku=first["sku"],
+    quote.update(version=version, notes=notes, created_at=at, catalogue_revision=published_revision(db),
+                 technical_evidence=_technical_evidence(item), sku=first["sku"],
                  unit_price=first["unit_price"], quantity=first["quantity"])
     db.execute("INSERT INTO quotes VALUES (?,?,?)", (item["id"], version, json.dumps(quote)))
     item["status"] = "draft_quote"
@@ -556,8 +588,10 @@ def _transition(db, item, action, fields, at, envelope=None):
     if action == "approve_quote" and fields.keys() - {"csrf", "action", "revision"}:
         raise ValueError("Save quotation edits as a new version before approving it.")
     if action == "refresh_evidence":
+        if item["status"] == "needs_clarification" and not _newly_resolved(db, item):
+            raise ValueError("This request still needs clarification before verification.")
         item.update(selected_skus=[], selected_sku=None)
-        _investigate(item)
+        _investigate(db, item)
         return "Refreshed technical and commercial evidence. A new employee verification is required."
     if action == "reconcile_requirements":
         reason = _text(fields.get("reason"), "the reason for accepting the complete revised request")
@@ -568,7 +602,7 @@ def _transition(db, item, action, fields, at, envelope=None):
             raise ValueError("Obtain a new complete customer revision after the employee correction.")
         item.pop("correction_hold", None)
         item["basis_inbound"] = inbound - 1
-        _investigate(item)
+        _investigate(db, item)
         return f"Accepted revised requirements from customer message {item['basis_inbound'] + 1}. {reason}"
     if action == "save_clarification":
         item["clarification"] = _text(fields.get("body"), "a clarification question")
@@ -593,7 +627,7 @@ def _transition(db, item, action, fields, at, envelope=None):
         if envelope:
             item["thread"][-1].update(envelope)
         item["sample_reply"] = ""
-        _investigate(item)
+        _investigate(db, item)
         return "Recorded a synthetic customer reply and rechecked the requirements."
     if action == "reject_match":
         reason = _text(fields.get("reason"), "a reason for rejecting this match")
@@ -604,7 +638,7 @@ def _transition(db, item, action, fields, at, envelope=None):
         partial = action == "verify_partial"
         if partial and not partial_offer(item["extraction"]):
             raise ValueError("This request is ineligible for a partial quotation.")
-        skus = _verified_skus(item, partial=partial)
+        skus = _verified_skus(item, active_parts(db), partial=partial)
         submitted = [fields.get(f"sku_{i}", fields.get("sku") if len(skus) == 1 else None)
                      for i in range(len(skus))]
         if submitted != skus:
@@ -623,7 +657,7 @@ def _transition(db, item, action, fields, at, envelope=None):
         item["status"] = "rejected"
         return f"Rejected quotation version {latest['version']}. {reason}"
     quantities = {line["sku"]: line["quantity"] for line in latest["lines"]}
-    current = _commercial(item, quantities)
+    current = _commercial(db, item, quantities)
     if any(latest.get(key) != value for key, value in current.items()):
         raise ValueError("Commercial records changed. Save an updated quotation before approval.")
     item["status"] = "approved"

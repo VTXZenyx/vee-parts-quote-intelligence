@@ -6,7 +6,7 @@ import re
 from importlib import import_module
 from typing import Protocol
 
-from vee.catalogue import QUANTITY, REFERENCE, analyse
+from vee.catalogue import QUANTITY, REFERENCE, Part, analyse
 
 KINDS = (
     "product",
@@ -168,9 +168,9 @@ PATTERNS = {
 }
 
 
-def baseline(source: str) -> dict:
+def baseline(source: str, account: str = "", parts: dict[str, Part] | None = None) -> dict:
     rows: list[dict] = []
-    for index, line in enumerate(analyse(source)["lines"], 1):
+    for index, line in enumerate(analyse(source, account, parts=parts)["lines"], 1):
         excerpt = line["text"][:300]
         if excerpt not in source:
             # Catalogue parsing normalises whitespace and can join multiple paragraphs.
@@ -227,8 +227,12 @@ def baseline(source: str) -> dict:
 class MockProvider:
     model = "offline demonstration"
 
+    def __init__(self, account: str = "", parts: dict[str, Part] | None = None) -> None:
+        self.account = account
+        self.parts = parts
+
     def generate(self, source: str) -> object:
-        result = baseline(source)
+        result = baseline(source, self.account, self.parts)
         match = re.search(r"\bbearngs?\b", source, re.IGNORECASE)
         if match and len(result["findings"]) < 80:
             result["findings"].append(
@@ -287,6 +291,8 @@ def extract(
     *,
     provider: Provider | None = None,
     subject: str = "",
+    account: str = "",
+    parts: dict[str, Part] | None = None,
 ) -> dict:
     if not isinstance(subject, str) or len(subject) > 204:
         raise ValueError("Select one subject of up to 204 characters.")
@@ -302,7 +308,7 @@ def extract(
     elif mode != "deterministic":
         try:
             if provider is None and mode == "mock":
-                provider = MockProvider()
+                provider = MockProvider(account, parts)
             if provider is not None:
                 model, payload = provider.model, provider.generate(model_input)
             else:
@@ -339,5 +345,5 @@ def extract(
         "method": "deterministic",
         "model": "",
         "notice": notice,
-        "findings": validate(baseline(source), source),
+        "findings": validate(baseline(source, account, parts), source),
     }

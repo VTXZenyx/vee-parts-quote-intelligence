@@ -265,7 +265,7 @@ def _accept(db, m, key):
         store._record_message(item, "inbound", m["body"], m["at"])
         item["thread"][-1].update(envelope)
         item.update(selected_skus=[], selected_sku=None, sample_reply="")
-        store._investigate(item)
+        store._investigate(db, item)
         store._save_revision(
             db,
             item,
