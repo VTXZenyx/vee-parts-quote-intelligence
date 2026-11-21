@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
+{% block title %}Quotation unavailable{% endblock %}
 {% block content %}
-<section class="panel case-section"><h1>Approval required for this preview</h1>
-<p>Open the current enquiry to check which quotation version has employee approval.</p>
-<a class="button" href="{{ url_for('enquiry', id=item.id) }}">Review {{ item.id }}</a></section>
+<section class="panel case-section"><h1>{{ heading|default('Approval required for this preview') }}</h1>
+{% if account %}<p>This version has no current employee approval. Check the account for available quotations.</p>
+<a class="button" href="{{ url_for('customer.accounts', account=account) }}">Back to {{ account }} quotations</a>
+{% else %}<p>Open the current enquiry to check which quotation version has employee approval.</p>
+<a class="button" href="{{ url_for('enquiry', id=item.id) }}">Review {{ item.id }}</a>{% endif %}</section>
 {% endblock %}

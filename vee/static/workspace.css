@@ -192,7 +192,10 @@ details form { margin-top: 12px; }
 .event-top strong { font-size: .86rem; }
 .event-top small,.event-type { font-size: .74rem; color: var(--muted); }
 .timeline .message-body { margin-top: 4px; font-size: .86rem; }
+.quote-heading { flex-wrap: wrap; }
+.quote-heading > div { flex: none; max-width: 100%; }
 .quote-heading .section-heading { margin-bottom: 0; }
+.quote-table tbody th .quantity-note { color: #744923; }
 .compact { padding: 5px 9px; min-height: 29px; }
 .quote-meta { margin: 18px 0; }
 .quote-table { font-size: .81rem; }
