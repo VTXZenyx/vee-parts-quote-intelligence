@@ -83,3 +83,20 @@ class WorkspaceRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 413)
         self.assertIn(b"Shorten the message", response.data)
         self.assertEqual(store.inbox(self.database), before)
+
+    def test_extra_units_move_draft_from_approval_queue_to_blocked(self):
+        from vee import store
+
+        key = "ENQ-1041"
+        item = store.detail(self.database, key)
+        def act(action, **fields):
+            nonlocal item
+            item = store.act(self.database, key, action, {"revision": item["revision"], **fields})
+        act("verify_match", sku="BRG-6205-2RS")
+        act("create_quote")
+        self.assertIn(key.encode(), self.client.get("/?stage=quotes").data)
+        act("edit_quote", quantity="6")
+        self.assertNotIn(key.encode(), self.client.get("/?stage=quotes").data)
+        self.assertIn(b"Review quantities ENQ-1041", self.client.get("/?stage=blocked").data)
+        act("edit_quote", quantity="4")
+        self.assertIn(key.encode(), self.client.get("/?stage=quotes").data)

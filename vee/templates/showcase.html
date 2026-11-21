@@ -2,15 +2,15 @@
 {% from 'components.html' import employee_styles %}
 {% block page_styles %}{{ employee_styles() }}{% endblock %}
 {% from 'components.html' import icon %}
-{% block title %}Choose a demonstration{% endblock %}
+{% block title %}Choose a demo{% endblock %}
 {% block content %}
 <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ url_for('inbox') }}">{{ icon('arrow-left',15) }} Enquiry inbox</a></nav>
 <section class="showcase-picker" aria-labelledby="scenario-title">
   <header class="scenario-intro">
     <p class="office-label">VEE Industrial Supplies · Hamilton</p>
-    <h1 id="scenario-title">Choose a demonstration</h1>
+    <h1 id="scenario-title">Choose a demo</h1>
     <p>Follow one customer enquiry from the sales desk. Each scenario opens in a fresh workspace.</p>
-    <div class="scenario-context">{{ icon('flask',18) }}<span>Customers and quotations are fictional. Email is simulated, stock and prices are synthetic, and live integrations are disconnected.</span></div>
+    <div class="scenario-context">{{ icon('flask',18) }}<span>Use sample stock and prices to prepare a quote. Emails stay in the demo. No order is placed or stock reserved.</span></div>
   </header>
   <form class="scenario-form" method="post" action="{{ url_for('start_demo') }}">
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="guided" value="1">

@@ -11,7 +11,7 @@ from contextlib import closing
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
-from vee import findings
+from vee import findings, store
 from vee.catalogue import partial_offer
 from vee.catalogue_import import published_revision
 from vee.catalogue_import import verify_history as verify_catalogue_history
@@ -207,7 +207,28 @@ def _verify_evidence_revision(record: dict, active: int) -> None:
         raise ValueError("Saved evidence references an unavailable catalogue revision.")
 
 
-def _verify_history(database: sqlite3.Connection, key: str, state: dict, catalogue_revision: int) -> None:
+def _verify_approved_quantities(database, state, quote, events):
+    inbound = [message["body"] for message in state["thread"] if message["direction"] == "inbound"]
+    basis = state.get("basis_inbound", 0)
+    reconciliation = next((detail for _, action, detail in reversed(events) if action == "reconcile_requirements"), "")
+    if (type(basis) is not int or not 0 <= basis < len(inbound)
+            or (basis and not inbound[basis].casefold().startswith(store.REVISED_HEADER.casefold()))
+            or (basis and not reconciliation.startswith(f"Accepted revised requirements from customer message {basis + 1}."))
+            or (not basis and reconciliation)):
+        raise ValueError("The approved quantity lacks the recorded customer request or revision decision.")
+    # Use the products available when the request was checked. Later imports must
+    # never reprice or reinterpret an otherwise valid historical snapshot.
+    evidence = state.copy()
+    store._investigate(database, evidence, catalogue_revision=state.get("catalogue_revision", 0))
+    confirmed = store.confirmed_quantities(evidence["extraction"])
+    if (confirmed != store.confirmed_quantities(state["extraction"])
+            or set(confirmed) != {line["sku"] for line in quote["lines"]}
+            or any(line.get("requested_quantity", confirmed[line["sku"]]) != confirmed[line["sku"]]
+                   or line["quantity"] > confirmed[line["sku"]] for line in quote["lines"])):
+        raise ValueError("The approved quantity differs from the recorded customer request.")
+
+
+def _verify_history(database: sqlite3.Connection, key: str, state: dict, catalogue_revision: int, schema_version: int) -> None:
     events = database.execute(
         "SELECT revision, action, detail FROM events WHERE enquiry_id=? ORDER BY revision",
         (key,),
@@ -226,6 +247,7 @@ def _verify_history(database: sqlite3.Connection, key: str, state: dict, catalog
         (key,),
     )
     version = 0
+    quote: dict = {}
     quote_reference = ""
     approved = False
     active_partial = None
@@ -282,9 +304,20 @@ def _verify_history(database: sqlite3.Connection, key: str, state: dict, catalog
         "draft_quote": {"create_quote", "edit_quote"},
         "approved": {"approve_quote"},
         "rejected": {"reject_quote"},
-        "awaiting_reply": {"approve_clarification"},
+        "awaiting_reply": {"approve_clarification", "request_quantity_confirmation"},
     }
     status = state["status"]
+    if schema_version >= 5 and approved:
+        _verify_approved_quantities(database, state, quote, events)
+    question_version = state.get("quantity_question_version")
+    if question_version is not None and (
+        type(question_version) is not int
+        or question_version != version
+        or status not in {"needs_clarification", "awaiting_reply"}
+        or state["selected_skus"]
+        or "request_quantity_confirmation" not in workflow_actions
+    ):
+        raise ValueError("The open quantity question does not match the saved quote and enquiry.")
     if status in final_actions and workflow_actions[-1] not in final_actions[status]:
         raise ValueError("The current state lacks its corresponding audit decision.")
     if status in {"verified", "draft_quote", "approved", "rejected"} and active_partial != partial_offer(state["extraction"]):
@@ -304,7 +337,7 @@ def _verify_snapshot(database: sqlite3.Connection) -> None:
         version = database.execute("PRAGMA user_version").fetchone()[0]
         if not 0 <= version <= SCHEMA_VERSION:
             raise ValueError("Unsupported VEE workspace version.")
-        reference.executescript(SCHEMA if version == SCHEMA_VERSION else V3_SCHEMA if version == 3 else V2_SCHEMA)
+        reference.executescript(SCHEMA if version >= 4 else V3_SCHEMA if version == 3 else V2_SCHEMA)
         if (
             database.execute(objects).fetchall()
             != reference.execute(objects).fetchall()
@@ -321,16 +354,16 @@ def _verify_snapshot(database: sqlite3.Connection) -> None:
         "SELECT 1 FROM quotes WHERE enquiry_id IS NULL LIMIT 1"
     ).fetchone():
         raise ValueError("An audit event or quote lacks its owning enquiry.")
-    if version == SCHEMA_VERSION:
+    if version >= 4:
         verify_catalogue_history(database)
-    catalogue_revision = published_revision(database) if version == SCHEMA_VERSION else 0
+    catalogue_revision = published_revision(database) if version >= 4 else 0
     sources: dict[tuple[str, str], tuple[str, dict]] = {}
     for key, revision, raw in database.execute(
         "SELECT id,revision,state FROM enquiries"
     ):
         state = _verify_enquiry(raw, key, revision)
         _verify_evidence_revision(state, catalogue_revision)
-        _verify_history(database, key, state, catalogue_revision)
+        _verify_history(database, key, state, catalogue_revision, version)
         _verify_findings(state)
         for message in state["thread"]:
             if "provider" in message:

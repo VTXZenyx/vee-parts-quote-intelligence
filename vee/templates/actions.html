@@ -7,44 +7,54 @@
     <button class="button primary">{{ icon('mail',16) }}{{ label }}</button>
   </form>
 {% endmacro %}
+{% set questions = item.thread|selectattr('direction','equalto','outbound')|list %}
 {% if item.status == 'needs_clarification' %}
-  <h2>{{ 'Review the changed order' if item.revised_request else 'Review clarification' }}</h2>
-  <p>{{ 'Compare the complete replacement request and record why it supersedes the earlier instructions.' if item.revised_request else 'Check the question below. Approving it records it in the simulated mailbox.' }}</p>
+  <h2>{{ 'Customer changed the request' if item.revised_request else 'Review the question' }}</h2>
+  <p>{{ 'Read the complete updated request below. Record why it replaces the earlier instructions before checking products again.' if item.revised_request else 'Approving the question saves it in the demo inbox. No real email is sent.' }}</p>
   {% if item.revised_request %}<div class="reconcile">
     <p class="message-body">{{ item.revised_request }}</p><form action="{{ post }}" method="post">{{ identity(item, csrf) }}
-    <label for="reconcile-reason">Reason for replacing the previous requirements</label><textarea id="reconcile-reason" name="reason" rows="2" maxlength="8000" required></textarea>
-    <button name="action" value="reconcile_requirements" class="button primary">Confirm revised request</button></form></div><details class="edit"><summary>Ask for more information instead</summary>{% endif %}
+    <label for="reconcile-reason">Why does this replace the earlier request?</label><textarea id="reconcile-reason" name="reason" rows="2" maxlength="8000" required></textarea>
+    <button name="action" value="reconcile_requirements" class="button primary">Confirm updated request</button></form></div><details class="edit"><summary>Ask for more information instead</summary>{% endif %}
   <form action="{{ post }}" method="post">{{ identity(item, csrf) }}
-    <label for="clarification">Clarification draft</label><textarea id="clarification" name="body" rows="7" maxlength="8000" required>{{ item.clarification }}</textarea>
-    <div class="stack"><button name="action" value="approve_clarification" class="button primary">{{ icon('check',16) }}Approve clarification</button>
+    {% if inbound|length > 1 %}<p class="question-context">{% if questions %}Follow-up question {{ questions|length + 1 }}.{% else %}Review new details.{% endif %} Check <a href="#customer-message-{{ inbound|length }}">customer message {{ inbound|length }}</a> for any details still needed.</p>{% endif %}
+    <label for="clarification">Question for the customer</label><textarea id="clarification" name="body" rows="7" maxlength="8000" required>{{ item.clarification }}</textarea>
+    <div class="stack"><button name="action" value="approve_clarification" class="button primary">{{ icon('check',16) }}Approve question</button>
     <button name="action" value="save_clarification" class="button">Save draft</button></div>
-  </form>{{ reject(item, csrf, 'reject_clarification', 'Reject clarification draft') }}{% if item.revised_request %}</details>{% endif %}
+  </form>{{ reject(item, csrf, 'reject_clarification', 'Reject question draft') }}{% if item.revised_request %}</details>{% endif %}
 {% elif item.status == 'awaiting_reply' %}
   <h2>Waiting for a customer reply</h2>
-  {% if prepared_reply %}<p>The fictional customer has a prepared reply. Read it, then add it to this enquiry.</p>
-    {{ receive_prepared('Record prepared reply') }}
+  {% if questions %}<details class="question-context"><summary>Read approved question {{ questions|length }}</summary><p class="message-body">{{ questions[-1].body }}</p></details>{% endif %}
+  {% if prepared_reply %}<p>Read the sample reply below and add it to the enquiry.</p>
+    {{ receive_prepared('Add customer reply') }}
   {% elif item.thread[0].message_id %}<p>Add the customer’s answer to the approved question to continue the checks.</p>
-    <a class="button primary" href="{{ url_for('demo_email', reply_to=item.id) }}">{{ icon('mail',16) }} Compose demo reply</a>
+    <a class="button primary" href="{{ url_for('demo_email', reply_to=item.id) }}">{{ icon('mail',16) }} Add customer reply</a>
   {% else %}<p>Enter the fictional customer’s answer to continue the checks.</p>
   <form action="{{ post }}" method="post">{{ identity(item, csrf) }}
-    <label for="reply">Synthetic customer reply</label><textarea id="reply" name="body" rows="4" maxlength="8000" required>{{ item.sample_reply }}</textarea>
+    <label for="reply">Customer reply</label><textarea id="reply" name="body" rows="4" maxlength="8000" required>{{ item.sample_reply }}</textarea>
     <p class="hint">For a complete replacement, start with “Revised request:” and list every product and quantity.</p>
-    <button class="button primary" name="action" value="simulate_reply">{{ icon('mail',16) }}Record mock reply</button>
+    <button class="button primary" name="action" value="simulate_reply">{{ icon('mail',16) }}Add customer reply</button>
   </form>{% endif %}
 {% elif item.status == 'needs_verification' %}
-  <h2>Verify catalogue match</h2><p>Compare the requested details with the proposed part, then confirm each reference.</p>
+  <h2>Check the product</h2><p>Compare the requested details with the proposed part, then confirm each reference.</p>
   <form action="{{ post }}" method="post">{{ identity(item, csrf) }}
     {% for line in item.extraction.lines %}<label class="confirm"><input type="checkbox" name="sku_{{ loop.index0 }}" value="{{ line.sku }}" required><span>Confirm <strong class="mono">{{ line.sku }}</strong></span></label>{% endfor %}
-    <button name="action" value="verify_match" class="button primary">{{ icon('check',16) }}Verify match{{ 'es' if item.extraction.lines|length > 1 }}</button>
+    <button name="action" value="verify_match" class="button primary">{{ icon('check',16) }}Confirm product{{ 's' if item.extraction.lines|length > 1 }}</button>
   </form>{{ reject(item, csrf, 'reject_match', 'Reject proposed match') }}
 {% elif item.status == 'verified' %}
   <h2>Prepare quotation</h2>{% if partial %}<p class="issues">Partial quotation · {{ partial.available }} available, {{ partial.outstanding }} outstanding.</p>{% endif %}<p>The products have been checked. Create a draft using this customer’s prices and the available stock.</p>
-  <form action="{{ post }}" method="post">{{ identity(item, csrf) }}<button name="action" value="create_quote" class="button primary">{{ icon('document-check',16) }}Create draft quotation</button></form>
+  <form action="{{ post }}" method="post">{{ identity(item, csrf) }}<button name="action" value="create_quote" class="button primary">{{ icon('document-check',16) }}Create quote</button></form>
 {% elif item.status in ['draft_quote','rejected'] %}
   {% set quote = item.quotes|last %}
-  <h2>{{ 'Review quotation' if item.status == 'draft_quote' else 'Revise quotation' }}</h2>
+  <h2>{{ 'Review quotation' if item.status == 'draft_quote' else 'Revise quote' }}</h2>
   <p>Version {{ quote.version }} totals <strong>{{ quote.currency }} {{ quote.total }}</strong> including GST.</p>
-  {% if item.status == 'draft_quote' %}<form class="approval" action="{{ post }}" method="post">{{ identity(item, csrf) }}<button name="action" value="approve_quote" class="button primary">{{ icon('check',16) }}Approve version {{ quote.version }}</button></form>{% endif %}
+  {% if quantity_increases %}
+  <div class="issues"><strong>Approval blocked</strong>
+    <ul>{% for difference in quantity_increases %}<li>{{ difference }}</li>{% endfor %}</ul>
+    <p>Reduce the quoted quantity, or ask the customer to confirm the complete request.</p></div>
+  <form class="approval" action="{{ post }}" method="post">{{ identity(item, csrf) }}
+    <button name="action" value="request_quantity_confirmation" class="button primary">{{ icon('mail',16) }}Ask customer to confirm quantities</button>
+  </form>
+  {% elif item.status == 'draft_quote' %}<form class="approval" action="{{ post }}" method="post">{{ identity(item, csrf) }}<button name="action" value="approve_quote" class="button primary">{{ icon('check',16) }}Approve version {{ quote.version }}</button></form>{% endif %}
   <details class="edit" {% if item.status == 'rejected' %}open{% endif %}><summary>Edit quotation</summary>
     <form action="{{ post }}" method="post" data-quote-editor>{{ identity(item, csrf) }}
       {% for line in quote.lines %}<label for="qty-{{ loop.index }}">Quantity · {{ line.sku }}</label><input id="qty-{{ loop.index }}" type="number" min="1" step="1" name="quantity_{{ line.sku }}" value="{{ line.quantity }}" required>{% endfor %}
@@ -57,25 +67,25 @@
   {% if item.status == 'draft_quote' %}{{ reject(item, csrf, 'reject_quote', 'Reject this quotation') }}{% endif %}
 {% elif item.status == 'approved' %}
   {% if prepared_reply %}
-  <h2>The customer changes the order</h2><p>Version {{ item.quotes[-1].version }} is approved. Recording this fictional revision will reopen the enquiry for a new review.</p>
-  {{ receive_prepared('Record revised order') }}
-  <a class="text-link" href="{{ url_for('customer_preview', id=item.id, version=item.quotes[-1].version) }}">Open customer preview</a>
+  <h2>Customer has an updated request</h2><p>Version {{ item.quotes[-1].version }} is approved. Adding the new request will withdraw approval and reopen the enquiry.</p>
+  {{ receive_prepared('Add revised request') }}
+  <a class="text-link" href="{{ url_for('customer_preview', id=item.id, version=item.quotes[-1].version) }}">View customer quote</a>
   {% else %}
   <h2>Quotation approved</h2><p>View the document for {{ item.customer }}. Employee approval is recorded for version {{ item.quotes[-1].version }}.</p>
-  <a class="button primary" href="{{ url_for('customer_preview', id=item.id, version=item.quotes[-1].version) }}">Open customer preview {{ icon('arrow-right',16) }}</a>
+  <a class="button primary" href="{{ url_for('customer_preview', id=item.id, version=item.quotes[-1].version) }}">View customer quote {{ icon('arrow-right',16) }}</a>
   {% endif %}
   <a class="text-link" href="#activity">Inspect audit history</a>
-  {% if not guide and item.thread[0].message_id %}<a class="text-link" href="{{ url_for('demo_email', reply_to=item.id) }}">Record a revised customer order</a>{% endif %}
+  {% if not guide and item.thread[0].message_id %}<a class="text-link" href="{{ url_for('demo_email', reply_to=item.id) }}">Add a revised customer request</a>{% endif %}
 {% elif item.status == 'commercial_hold' %}
   <h2>{{ 'Review the stock shortage' if partial else 'Stock or pricing needs attention' }}</h2>
   {% if not partial %}<p>A quotation is blocked until the stock and price are confirmed. Check the outstanding issues for each product.</p><a href="#evidence" class="button primary">Review issues {{ icon('arrow-right',15) }}</a>{% endif %}
   {% if partial %}<form method="post" action="{{ post }}">{{ identity(item, csrf) }}
-    <p>Only {{ partial.available }} units can be quoted. The remaining {{ partial.outstanding }} require supplier confirmation.</p>
-    <label class="confirm"><input name="sku" value="{{ partial.sku }}" type="checkbox" required>Confirm the technical match for {{ partial.sku }}</label>
-    <button class="button primary" name="action" value="verify_partial">Verify for a partial quotation</button></form>{% endif %}
+    <p>The customer requested {{ partial.available + partial.outstanding }} units. You can quote {{ partial.available }} now. The remaining {{ partial.outstanding }} require supplier confirmation.</p>
+    <label class="confirm"><input name="sku" value="{{ partial.sku }}" type="checkbox" required>Confirm the product {{ partial.sku }}</label>
+    <button class="button primary" name="action" value="verify_partial">Confirm partial supply</button></form>{% endif %}
 {% endif %}
 
 {% if item.status in ['needs_verification','verified','draft_quote','rejected','commercial_hold'] or item.get('catalogue_refresh_available') %}
-<details class="refresh"><summary>Refresh catalogue evidence</summary><p>Recheck the current records. Existing quotes stay in the history and products will need a new review.</p>
-  <form action="{{ post }}" method="post">{{ identity(item, csrf) }}<button class="button" name="action" value="refresh_evidence">Refresh evidence</button></form>
+<details class="refresh"><summary>Recheck stock, price and specifications</summary><p>Recheck the current records. Existing quotes stay in the history and products will need a new review.</p>
+  <form action="{{ post }}" method="post">{{ identity(item, csrf) }}<button class="button" name="action" value="refresh_evidence">Check latest product details</button></form>
 </details>{% endif %}

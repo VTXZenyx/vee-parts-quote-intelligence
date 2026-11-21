@@ -34,7 +34,7 @@ class CustomerModeTests(unittest.TestCase):
         for account in store.CUSTOMERS:
             with self.subTest(account=account):
                 listing = self.listing(account)
-                self.assertIn("Presenter-controlled local demonstration", listing)
+                self.assertIn("Fictional customer accounts", listing)
                 examples = self.example_links(listing)
                 self.assertTrue(examples)
                 for url in examples:
@@ -84,7 +84,7 @@ class CustomerModeTests(unittest.TestCase):
         approved = act("approve_quote")
         unavailable = self.client.get(document(1))
         self.assertEqual(unavailable.status_code, 409)
-        self.assertIn(b"Quotation superseded", unavailable.data)
+        self.assertIn(b"Replaced by a newer quote", unavailable.data)
         latest = self.client.get(document(2))
         self.assertEqual(latest.status_code, 200)
         self.assertIn(b"158.13", latest.data)
@@ -100,22 +100,25 @@ class CustomerModeTests(unittest.TestCase):
         self.assertIn(b"Approval withdrawn", withdrawn.data)
         self.assertNotIn(f"/workspace-original/{key}/2", self.listing(account))
 
-    def test_employee_quantity_increase_is_disclosed_in_the_approved_document(self):
+    def test_employee_quantity_increase_blocks_web_approval_and_customer_preview(self):
         key = "ENQ-1041"
         item = store.detail(self.path, key)
         for action, fields in [("verify_match", {"sku": "BRG-6205-2RS"}), ("create_quote", {}),
-                               ("edit_quote", {"quantity": "5"}), ("approve_quote", {})]:
+                               ("edit_quote", {"quantity": "6", "notes": "Customer confirmed."})]:
             item = store.act(self.path, key, action, {"revision": item["revision"], **fields})
-        snapshot = item["quotes"][-1]
-        self.assertEqual((snapshot["lines"][0]["requested_quantity"], snapshot["lines"][0]["quantity"]), (4, 5))
-        notice = b"Employee increased the quoted quantity above the customer request"
-        self.assertIn(notice, self.client.get(f"/enquiries/{key}").data)
+        detail = self.client.get(f"/enquiries/{key}")
+        self.assertIn(b"Ask customer to confirm quantities", detail.data)
+        self.assertNotIn(b'value="approve_quote"', detail.data)
+        with self.client.session_transaction() as session:
+            csrf = session["csrf"]
+        response = self.client.post(f"/enquiries/{key}/actions", data={
+            "csrf": csrf, "revision": item["revision"], "action": "approve_quote"
+        }, follow_redirects=True)
+        self.assertIn(b"BRG-6205-2RS", response.data)
+        self.assertEqual(store.detail(self.path, key), item)
         url = f"/customer-preview/workspace-original/{key}/2?account=Kauri+Engineering"
-        doc = self.client.get(url)
-        self.assertEqual(doc.status_code, 200)
-        self.assertIn(notice, doc.data)
-        self.assertIn(b"Customer confirmation is outstanding", doc.data)
-        self.assertEqual(store.detail(self.path, key)["quotes"][-1], snapshot)
+        self.assertEqual(self.client.get(url).status_code, 409)
+        self.assertNotIn(f"/workspace-original/{key}/2", self.listing("Kauri Engineering"))
 
     def test_original_bookmark_cannot_resolve_against_another_workspace(self):
         key = "ENQ-1041"

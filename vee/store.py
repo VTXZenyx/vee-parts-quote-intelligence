@@ -2,6 +2,7 @@
 
 import json
 import re
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -36,7 +37,7 @@ ALLOWED = {
     "awaiting_reply": {"simulate_reply"},
     "needs_verification": {"verify_match", "reject_match", "refresh_evidence"},
     "verified": {"create_quote", "refresh_evidence"},
-    "draft_quote": {"edit_quote", "approve_quote", "reject_quote", "refresh_evidence"},
+    "draft_quote": {"edit_quote", "approve_quote", "reject_quote", "refresh_evidence", "request_quantity_confirmation"},
     "rejected": {"edit_quote", "refresh_evidence"},
     "approved": set(),
     "commercial_hold": {"refresh_evidence", "verify_partial"},
@@ -84,7 +85,7 @@ CREATE TABLE IF NOT EXISTS provider_mail (
 """
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 SCHEMA = V3_SCHEMA + IMPORT_SCHEMA
 
 
@@ -183,8 +184,8 @@ def _omitted_attributes(previous, active, account, parts):
                    if field not in line["attributes"]})
 
 
-def _investigate(db, item):
-    item["catalogue_revision"] = published_revision(db)
+def _investigate(db, item, *, catalogue_revision=None):
+    item["catalogue_revision"] = published_revision(db) if catalogue_revision is None else catalogue_revision
     parts = active_parts(db, item["catalogue_revision"])
     # Only inbound customer messages establish requirements.
     messages = [entry["body"] for entry in item["thread"] if entry["direction"] == "inbound"]
@@ -227,6 +228,9 @@ def _investigate(db, item):
             fields = ", ".join(omitted)
             _require_review(analysis, f"Earlier specifications need explicit confirmation: {fields}.",
                             f"Please include the confirmed {fields} in the revised request.")
+    if item.get("quantity_question_version") and not item["revised_request"]:
+        _require_review(analysis, "The customer needs to confirm the quantities.",
+                        "Please start with 'Revised request:' and list every product, quantity and specification.")
     if item.get("correction_hold"):
         _require_review(analysis, "An employee has flagged a requirement for correction.",
                         "Please supply a complete 'Revised request:' confirming all products, quantities and specifications.")
@@ -268,18 +272,19 @@ def _recheck_legacy_decisions(db):
         old_offer = partial_offer(previous)
         if not previous["ready"] and not old_offer:
             continue
+        approved_quote = _latest_quote(db, item) if item["status"] == "approved" else None
         _investigate(db, item)
+        excess = quantity_increases(item["extraction"], approved_quote) if approved_quote else []
         old_items = [(line["sku"], line["quantity"]) for line in previous["lines"]]
         current_items = [(line["sku"], line["quantity"]) for line in item["extraction"]["lines"]]
-        if (old_items == current_items and previous["ready"] == item["extraction"]["ready"]
+        if (not excess and old_items == current_items and previous["ready"] == item["extraction"]["ready"]
                 and old_offer == partial_offer(item["extraction"])):
             continue
         item.update(selected_skus=[], selected_sku=None)
-        item["revision"] += 1
-        db.execute("UPDATE enquiries SET revision=?,state=? WHERE id=?",
-                   (item["revision"], json.dumps(item), item["id"]))
-        _audit(db, item, "Workspace update", "recheck_requirements",
-               "Reopened under updated verification rules. Earlier decisions and quotation versions are historical.", _now())
+        reason = ("Reopened because the approved quantity exceeded the customer's request. "
+                  if excess else "Reopened under updated verification rules. ")
+        _save_revision(db, item, "Workspace update", "recheck_requirements",
+                       reason + "Earlier decisions and quotation versions are historical.", _now())
 
 
 CUSTOMERS = tuple(sorted({seed[1] for seed in SEEDS} | {"Contract Only Engineering"}))
@@ -399,9 +404,14 @@ def _next_key(db):
     return f"ENQ-{sequence}"
 
 
+def receive_enquiry(path: str | Path, message_id: str, customer: str, subject: str, body: str) -> tuple[str, bool]:
+    """Return the enquiry reference and whether this form submission was already saved."""
+    return _receive(path, message_id, customer, subject, body)
+
+
 def receive(path: str | Path, message_id: str, customer: str, subject: str, body: str) -> str:
     """Record the original local intake form, atomically deduplicating retries."""
-    return _receive(path, message_id, customer, subject, body)[0]
+    return receive_enquiry(path, message_id, customer, subject, body)[0]
 
 
 def receive_demo_email(
@@ -455,10 +465,18 @@ def queue_summaries(path: str | Path) -> list[dict]:
                    json_extract(state, '$.subject') AS subject,
                    json_extract(state, '$.status') AS status,
                    json_extract(state, '$.received_at') AS received_at,
-                   json_extract(state, '$.extraction.urgent') AS urgent
+                   json_extract(state, '$.extraction.urgent') AS urgent,
+                   CASE WHEN json_extract(state, '$.status') = 'draft_quote' THEN EXISTS (
+                       SELECT 1 FROM json_each((
+                           SELECT snapshot FROM quotes WHERE enquiry_id = enquiries.id
+                            ORDER BY version DESC LIMIT 1
+                       ), '$.lines') AS line
+                       WHERE json_extract(line.value, '$.quantity') > json_extract(line.value, '$.requested_quantity')
+                   ) ELSE 0 END AS quantity_hold
               FROM enquiries ORDER BY id DESC
         """)
-        return [{**dict(row), "extraction": {"urgent": bool(row["urgent"])}} for row in rows]
+        return [{**dict(row), "queue_status": "quantity_hold" if row["quantity_hold"] else row["status"],
+                 "extraction": {"urgent": bool(row["urgent"])}} for row in rows]
 
 
 def inbox(path: str | Path) -> list[dict]:
@@ -545,6 +563,21 @@ def _latest_quote(db, item):
     return json.loads(row["snapshot"])
 
 
+def confirmed_quantities(analysis):
+    """Total the matched customer request per product, including repeated lines."""
+    confirmed: Counter[str] = Counter()
+    for line in analysis["lines"]:
+        if line["sku"] and line["status"] == "verified":
+            confirmed[line["sku"]] += line["quantity"]
+    return confirmed
+
+
+def quantity_increases(analysis, quote):
+    confirmed = confirmed_quantities(analysis)
+    return [f"{line['sku']} (requested {confirmed[line['sku']]}, quoted {line['quantity']})"
+            for line in quote["lines"] if line["quantity"] > confirmed[line["sku"]]]
+
+
 def _edited_quantities(fields, previous):
     quantities = {line["sku"]: line["quantity"] for line in previous["lines"]}
     allowed = {"quantity_" + sku for sku in quantities}
@@ -601,14 +634,25 @@ def _transition(db, item, action, fields, at, envelope=None):
         if any(inbound <= hold["after"] for hold in item.get("correction_hold", [])):
             raise ValueError("Obtain a new complete customer revision after the employee correction.")
         item.pop("correction_hold", None)
+        item.pop("quantity_question_version", None)
         item["basis_inbound"] = inbound - 1
         _investigate(db, item)
         return f"Accepted revised requirements from customer message {item['basis_inbound'] + 1}. {reason}"
     if action == "save_clarification":
         item["clarification"] = _text(fields.get("body"), "a clarification question")
         return "Saved clarification draft: " + item["clarification"]
-    if action == "approve_clarification":
-        item["clarification"] = _text(fields.get("body", item["clarification"]), "a clarification question")
+    if action in {"approve_clarification", "request_quantity_confirmation"}:
+        if action == "request_quantity_confirmation":
+            latest = _latest_quote(db, item)
+            excess = quantity_increases(item["extraction"], latest)
+            if not excess:
+                raise ValueError("The quoted quantities are already within the customer request.")
+            item["quantity_question_version"] = latest["version"]
+            item.update(selected_skus=[], selected_sku=None, sample_reply="")
+            item["clarification"] = ("Please confirm the quantities for " + ", ".join(excess) +
+                                     ". Reply with 'Revised request:' and list all products, quantities and specifications.")
+        else:
+            item["clarification"] = _text(fields.get("body", item["clarification"]), "a clarification question")
         _record_message(item, "outbound", item["clarification"], at)
         address = reply_envelope(item)
         item["thread"][-1].update(
@@ -616,6 +660,8 @@ def _transition(db, item, action, fields, at, envelope=None):
             message_id=str(uuid4()), reply_to=item["id"],
         )
         item["status"] = "awaiting_reply"
+        if action == "request_quantity_confirmation":
+            return f"Asked the customer to confirm quantities for quote version {latest['version']}: " + ", ".join(excess)
         return "Employee approved the clarification and recorded it in the mock mailbox."
     if action == "reject_clarification":
         reason = _text(fields.get("reason"), "a rejection reason")
@@ -656,6 +702,9 @@ def _transition(db, item, action, fields, at, envelope=None):
         reason = _text(fields.get("reason"), "a rejection reason")
         item["status"] = "rejected"
         return f"Rejected quotation version {latest['version']}. {reason}"
+    excess = quantity_increases(item["extraction"], latest)
+    if excess:
+        raise ValueError("Approval blocked. Ask the customer to confirm quantities or reduce the quote: " + ", ".join(excess))
     quantities = {line["sku"]: line["quantity"] for line in latest["lines"]}
     current = _commercial(db, item, quantities)
     if any(latest.get(key) != value for key, value in current.items()):

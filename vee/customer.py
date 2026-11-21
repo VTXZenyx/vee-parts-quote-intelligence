@@ -52,7 +52,7 @@ def current_approved(item: dict, version: str | None = None) -> bool:
     if item["status"] != "approved" or not item["quotes"]:
         return False
     quote = item["quotes"][-1]
-    if version is not None and version != str(quote["version"]):
+    if store.quantity_increases(item["extraction"], quote) or (version is not None and version != str(quote["version"])):
         return False
     # Advisory finding reviews can follow approval without changing the quote.
     decision = next((event for event in reversed(item["history"])
@@ -107,7 +107,7 @@ def make_blueprint(original: Path) -> Blueprint:
             title = "Approval required for this preview"
             saved = next((quote for quote in item["quotes"] if quote["version"] == version), None)
             if saved and version < item["quotes"][-1]["version"]:
-                title = "Quotation superseded"
+                title = "Replaced by a newer quote"
             elif saved and any(event["action"] == "approve_quote" and
                                event["detail"].startswith(f"Employee approved quotation version {version} ")
                                for event in item["history"]):

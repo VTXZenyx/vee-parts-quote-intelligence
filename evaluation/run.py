@@ -1,7 +1,7 @@
 """Run from the repository root with python -m evaluation.run."""
 
 import json
-from collections import Counter
+from collections import Counter, defaultdict
 from itertools import zip_longest
 from pathlib import Path
 from statistics import median
@@ -12,7 +12,9 @@ from vee.catalogue import VERSION, analyse, build_quote
 
 def evaluate() -> dict:
     cases = json.loads(Path(__file__).with_name("cases.json").read_text())
-    counts: Counter[str] = Counter(false_verified_sku=0, unsafe_ready=0)
+    counts: Counter[str] = Counter(false_verified_sku=0, unsafe_ready=0, incorrect_quantity=0, incorrect_eligibility=0)
+    categories: Counter[str] = Counter()
+    outcomes: dict[str, Counter[str]] = defaultdict(Counter)
     timings = []
     failures = []
     for case in cases:
@@ -21,6 +23,7 @@ def evaluate() -> dict:
         result = analyse(case["text"], account)
         reasons = []
         if result["ready"] != case["ready"]:
+            counts["incorrect_eligibility"] += 1
             reasons.append("eligibility")
         counts["unsafe_ready"] += result["ready"] and not case["ready"]
         expected_status = case["status"]
@@ -43,6 +46,22 @@ def evaluate() -> dict:
                     item and expected in [p["sku"] for p in item["candidates"][:3]]
                 )
 
+        if "quantities" in case:
+            actual_quantities = [line["quantity"] for line in result["lines"]]
+            counts["labelled_quantities"] += len(case["quantities"])
+            missing = object()
+            mismatches = sum(a != b for a, b in zip_longest(actual_quantities, case["quantities"], fillvalue=missing))
+            counts["incorrect_quantity"] += mismatches
+            if mismatches:
+                reasons.append("quantity")
+        if "candidate" in case:
+            counts["labelled_suggestions"] += 1
+            if not result["lines"] or case["candidate"] not in [
+                candidate["sku"] for candidate in result["lines"][0]["candidates"][:3]
+            ]:
+                reasons.append("candidate")
+            else:
+                counts["correct_suggestions"] += 1
         for field, value in case.get("attributes", {}).items():
             counts["labelled_attributes"] += 1
             if result["lines"][0]["attributes"].get(field) == value:
@@ -65,6 +84,11 @@ def evaluate() -> dict:
         if "total" in case:
             counts["labelled_totals"] += 1
             counts["correct_totals"] += actual == case["total"]
+        if "category" in case:
+            categories[case["category"]] += 1
+            tally = outcomes[case["outcome"]]
+            tally["cases"] += 1
+            tally["passed"] += not reasons
         if reasons:
             failures.append({"case": case["id"], "fields": sorted(set(reasons))})
         timings.append((perf_counter_ns() - start) / 1e6)
@@ -74,6 +98,8 @@ def evaluate() -> dict:
         "cases": len(cases),
         "passed": len(cases) - len(failures),
         **counts,
+        "natural_cases_by_category": categories,
+        "natural_cases_by_outcome": outcomes,
         "median_ms": round(median(timings), 3),
         "p95_ms": round(sorted(timings)[(95 * len(timings) + 99) // 100 - 1], 3),
         "external_provider_calls": 0,

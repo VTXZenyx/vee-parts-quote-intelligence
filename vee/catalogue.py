@@ -194,7 +194,16 @@ PREFIXES = {
     "BLT": "Fastener",
     "ADP": "Hydraulic adapter",
 }
-REFERENCE = re.compile(r"(?<![\w-])(?:CYL|BRG|BLT|ADP)-[\w-]+(?![\w-])", re.IGNORECASE)
+# Only the catalogue's four structured reference shapes allow interior spaces.
+# Keep unknown suffixes attached so a near neighbour cannot become an exact SKU.
+DASH = "[-–‑]"
+SEP = rf"(?:[ \t]*{DASH}[ \t]*|[ \t]+)"
+REFERENCE = re.compile(
+    rf"(?<![\w–‑-])(?:BRG{SEP}\d+{SEP}[a-z0-9]+|CYL{SEP}\d+{SEP}(?:\d+{SEP}[a-z0-9]+|old)"
+    rf"|ADP{SEP}[a-z]+{SEP}\d+|BLT{SEP}m\d+{SEP}\d+(?:{SEP}g\d+)?"
+    rf"|(?:CYL|BRG|BLT|ADP){DASH}[\w–‑-]+)(?:{DASH}[\w–‑-]+)*(?![\w–‑-])",
+    re.IGNORECASE,
+)
 WORDS = dict(
     zip(
         ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"],
@@ -202,9 +211,10 @@ WORDS = dict(
     )
 )
 COUNT = r"(?:[+-]?\d+(?:\.\d+)?|" + "|".join(WORDS) + ")"
+QUANTITY_RANGE = re.compile(rf"\b{COUNT}\s+(?:or|to)\s+{COUNT}\b", re.IGNORECASE)
 NOUN = "(?:" + "|".join(FAMILIES.values()) + ")"
 QUANTITY = re.compile(
-    rf"(?<![\w./+-])({COUNT})\s*(?:[x×](?![a-z])|(?:off|pcs|pieces|units)\b|(?=(?:replacement\s+)?{NOUN}\b)|(?=(?:cyl|brg|blt|adp)-))"
+    rf"(?<![\w./+-])({COUNT})\s*(?:[x×](?![a-z])|(?:off|pcs|pieces|units)\b|(?=(?:replacement\s+)?{NOUN}\b)|(?=(?:cyl|brg|blt|adp)(?:[-–‑]|[ \t]+[a-z0-9])))"
     rf"|\b(?:qty|quantity)\s*[:=]?\s*({COUNT})\b",
     re.IGNORECASE,
 )
@@ -219,7 +229,8 @@ LABEL = {
 }
 # Only understood requirements are eligible for verification. Unconsumed language goes to review.
 COURTESY = re.compile(
-    r"\b(?:hi|hello|please|thanks|thank you|we urgently need|we need|i need|need|urgent(?:ly)?|"
+    r"\b(?:(?:(?:good )?morning|hi|hello)(?: team)?|please|many thanks|thanks|thank you|cheers|"
+    r"we urgently need|we need|i need|need|urgent(?:ly)?|could i get|can you quote|"
     r"could you (?:please )?quote|quote(?: for)?|replacement|as shown in the attachment|"
     r"for our packaging machine|the label has worn off|label unreadable|"
     r"and|with|units)\b",
@@ -296,7 +307,7 @@ def _line_texts(text: str) -> list[tuple[str, bool]]:
     # items, a continuation has ambiguous scope until the customer identifies it.
     normal = re.sub(r"[^\S\n]+", " ", text)
     starter = (
-        rf"(?:{COUNT} +)?(?:[x×] *|(?:replacement +)?{NOUN}\b|(?:cyl|brg|blt|adp)-)"
+        rf"(?:{COUNT} +)?(?:[x×] *|(?:replacement +)?{NOUN}\b|(?:cyl|brg|blt|adp)(?=[–‑-]| +[a-z0-9]))"
     )
     paragraphs = re.split(
         rf"[\n;]+|, *(?={NOUN}\b)| +(?:and|plus|also|with) +(?={starter})",
@@ -334,7 +345,7 @@ def _line_texts(text: str) -> list[tuple[str, bool]]:
 
 def _count(text: str) -> tuple[int | None, str]:
     matches = list(QUANTITY.finditer(text))
-    values = [m.group(1) or m.group(2) for m in matches]
+    values = [(m.group(1) or m.group(2)).lower() for m in matches]
     counts = {
         WORDS[v] if v in WORDS else int(v)
         for v in values
@@ -350,9 +361,9 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
     found: dict[str, set[str]] = {}
     residual = text
 
-    def measurement(number: str, unit: str) -> str:
+    def measurement(number: str, unit: str, shift: int = 0) -> str:
         # Remove formatting zeros without rounding to Decimal context precision.
-        number = format(Decimal(number), "f")
+        number = format(Decimal(f"{number}e{shift}"), "f")
         if "." in number:
             number = number.rstrip("0").rstrip(".")
         return number + unit
@@ -376,14 +387,16 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
     # Bind complete pairs in source order. Parsing one field at a time can take
     # "32 mm bore" out of "stroke 32 mm bore 100 mm" and reverse both assignments.
     label = r"(outside diameter|od|bore|stroke|width|length|pitch)"
-    dimension = r"(\d+(?:\.\d+)?)\s*mm\b"
+    dimension = r"(\d+(?:\.\d+)?)\s*((?-i:mm|cm|MM|CM))\b"
 
     def read_dimension(match: re.Match[str]) -> str:
-        field, number = (match[1], match[2]) if match[1] else (match[4], match[3])
+        field, number, unit = (
+            (match[1], match[2], match[3]) if match[1] else (match[6], match[4], match[5])
+        )
         field = field.casefold()
         if field == "od":
             field = "outside diameter"
-        found.setdefault(field, set()).add(measurement(number, " mm"))
+        found.setdefault(field, set()).add(measurement(number, " mm", int(unit.lower() == "cm")))
         return " "
 
     residual = re.sub(
@@ -408,10 +421,14 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
     capture("standard", r"\biso\s*15552\b", fixed="ISO 15552")
     capture("port", r"\bg\s*1/8\b(?:\s+ports?\b)?", fixed="G1/8")
     capture("port", r"\bg\s*1/4\b(?:\s+ports?\b)?", fixed="G1/4")
-    capture(
-        "pressure",
-        r"(?<![\w./+-])(?:(?:working )?pressure\s*[:=]?\s*)?(\d+(?:\.\d+)?)\s*bar\b",
-        " bar",
+    def read_pressure(match: re.Match[str]) -> str:
+        value = measurement(match[1], " bar", int(match[2].lower() == "mpa"))
+        found.setdefault("pressure", set()).add(value)
+        return " "
+
+    residual = re.sub(
+        r"(?<![\w./+-])(?:(?:working )?pressure\s*[:=]?\s*)?(\d+(?:\.\d+)?)\s*(bar|(?-i:MPa))\b",
+        read_pressure, residual, flags=re.IGNORECASE,
     )
     for size in ("1/4", "3/8", "1/2"):
         capture("size", rf'(?<![\w/]){size}\s*(?:in(?:ch(?:es)?)?\b|")', fixed=f"{size} in")
@@ -431,19 +448,24 @@ def _compatible(key: str, value: str, part: Part) -> bool:
 
 
 def _analyse_line(text: str, account: str, ambiguous: bool, parts: dict[str, Part]) -> Record:
-    normal = text.lower().replace("–", "-").replace("‑", "-")
-    references = [m.group().upper() for m in REFERENCE.finditer(normal)]
+    normal = text.replace("–", "-").replace("‑", "-")
+    # A separate stock question does not qualify the part. Other questions,
+    # including a question mark on the SKU itself, retain their review gate.
+    normal = re.sub(r"(?<=[.!?])\s+are these in stock\?", " ", normal, flags=re.IGNORECASE)
+    references = [re.sub(SEP, "-", m.group()).upper() for m in REFERENCE.finditer(normal)]
     families = {
         f
         for f, pattern in FAMILIES.items()
-        if re.search(r"\b(?:" + pattern + r")\b", normal)
+        if re.search(r"\b(?:" + pattern + r")\b", normal, re.IGNORECASE)
     }
     families.update(PREFIXES[ref.split("-", 1)[0]] for ref in references)
     family = next(iter(families)) if len(families) == 1 else "Unidentified"
     quantity, residual = _count(normal)
+    if QUANTITY_RANGE.search(normal):
+        quantity = None
     residual = REFERENCE.sub(" ", residual)
     for pattern in FAMILIES.values():
-        residual = re.sub(r"\b(?:" + pattern + r")\b", " ", residual)
+        residual = re.sub(r"\b(?:" + pattern + r")\b", " ", residual, flags=re.IGNORECASE)
     attrs, contradictory, residual = _attributes(residual)
     unparsed = COURTESY.sub(" ", residual).strip()
     unknown_words = bool(re.search(r"[^\s,.:;!?()]", unparsed))
@@ -504,7 +526,7 @@ def _analyse_line(text: str, account: str, ambiguous: bool, parts: dict[str, Par
         status = "review"
         if part and part.discontinued:
             issues.append("Discontinued catalogue reference. A replacement requires employee review.")
-        elif re.search(r"\b(?:approve|ignore|override)\b", normal):
+        elif re.search(r"\b(?:approve|ignore|override)\b", normal, re.IGNORECASE):
             issues.append("Unsupported approval or override wording in the customer message. Employee review required.")
         else:
             issues.append("A conditional requirement or special service condition needs employee review.")
@@ -523,7 +545,7 @@ def _analyse_line(text: str, account: str, ambiguous: bool, parts: dict[str, Par
         questions.append(
             "Which reference does the additional specification or quantity apply to?"
         )
-    elif not missing and ("as shown in the attachment" in normal or "?" in normal):
+    elif not missing and ("as shown in the attachment" in normal.lower() or "?" in normal):
         status = "review"
         issues.append(
             "A reference or specification depends on a question or unreviewed attachment."

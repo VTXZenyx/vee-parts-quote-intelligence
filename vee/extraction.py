@@ -6,7 +6,7 @@ import re
 from importlib import import_module
 from typing import Protocol
 
-from vee.catalogue import QUANTITY, REFERENCE, Part, analyse
+from vee.catalogue import QUANTITY, QUANTITY_RANGE, REFERENCE, Part, analyse
 
 KINDS = (
     "product",
@@ -71,10 +71,14 @@ class Provider(Protocol):
     def generate(self, source: str) -> object: ...
 
 
-def numeric_literal(value: str, text: str) -> bool:
+def literal_pattern(value: str) -> str:
     prefix = r"(?<![\w.,/−+-])" if value[0].isdigit() else ""
     suffix = r"(?!\d|[.,/]\d)" if value[-1].isdigit() else ""
-    return re.search(prefix + re.escape(value) + suffix, text) is not None
+    return prefix + re.escape(value) + suffix
+
+
+def numeric_literal(value: str, text: str) -> bool:
+    return re.search(literal_pattern(value), text) is not None
 
 
 def validate(payload: object, source: str) -> list[dict]:
@@ -121,7 +125,7 @@ def validate(payload: object, source: str) -> list[dict]:
             "attribute",
         }:
             # A provider may quote only the number and omit its qualifier.
-            literal = re.escape(evidence)
+            literal = literal_pattern(evidence)
             qualifier = "(?:" + APPROX.pattern + ")"
             qualified = re.search(
                 qualifier
@@ -138,7 +142,7 @@ def validate(payload: object, source: str) -> list[dict]:
                 result["status"] = "approximate"
                 if qualified and len(qualified.group()) <= 300:
                     result["evidence"] = qualified.group()
-            if row["kind"] == "quantity" and RELATIVE.search(source):
+            if row["kind"] == "quantity" and (RELATIVE.search(source) or QUANTITY_RANGE.search(source)):
                 result["status"] = "inferred"
         checked.append(result)
     return checked

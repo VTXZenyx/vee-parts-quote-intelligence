@@ -100,3 +100,9 @@
   .document .quote { margin: 0; }
   .document-terms { break-inside: avoid; }
 }
+.customer-switch { max-width: 100%; }
+.document-sheet { overflow-wrap: anywhere; }
+@media print {
+  .quote-table tr { break-inside: avoid; }
+  .document-terms { margin-top: 12pt; }
+}
