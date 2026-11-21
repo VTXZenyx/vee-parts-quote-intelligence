@@ -1,0 +1,20 @@
+.topbar-inner { display: grid; grid-template-columns: auto 1fr auto; }
+.workspace-nav { justify-self: center; gap: 3px; }
+.workspace-nav a { border-radius: 6px; padding-inline: 10px; }
+.workspace-nav a[aria-current] { background: #eaf2ec; text-decoration: none; }
+.compact-feedback { margin-block: 8px; padding-block: 6px; }
+@media (max-width: 1024px) {
+  .topbar .product { display: none; }
+  .workspace-nav { justify-self: end; }
+}
+@media (max-width: 740px) {
+  .topbar-inner { grid-template-columns: auto 1fr; gap: 2px; padding-top: 7px; }
+  .topbar .environment { grid-column: 2; grid-row: 1; justify-self: end; }
+  .workspace-nav { grid-column: 1 / -1; display: flex; width: 100%; justify-content: space-between; gap: 0; }
+  .workspace-nav a { min-height: 38px; font-size: .78rem; padding-inline: 5px; }
+  .workspace-nav .icon { display: none; }
+}
+@media (max-width: 420px) {
+  .workspace-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 0 4px; }
+  .workspace-nav a { justify-content: center; min-height: 32px; }
+}

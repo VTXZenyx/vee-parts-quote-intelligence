@@ -19,7 +19,7 @@ def exercise_dashboard(page: Page, address: str) -> None:
     search.fill("Coastal")
     search.press("Enter")
     expect(page.locator(".inbox-table tbody tr")).to_have_count(2)
-    expect(blockers).to_have_attribute("aria-current", "true")
+    expect(page.get_by_role("link", name="Blocked 2")).to_have_attribute("aria-current", "true")
     page.get_by_role("link", name="Clear filters").click()
     expect(page.locator(".inbox-table tbody tr")).to_have_count(6)
     response = page.goto(address + "/enquiries/unknown")

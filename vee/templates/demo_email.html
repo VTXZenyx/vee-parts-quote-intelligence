@@ -1,15 +1,17 @@
 {% extends 'base.html' %}
+{% from 'components.html' import employee_styles %}
+{% block page_styles %}{{ employee_styles() }}{% endblock %}
 {% from 'components.html' import date, icon %}
 {% block title %}Demo Email Inbox{% endblock %}
 {% block content %}
 <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ url_for('inbox') }}">{{ icon('arrow-left',15) }} Enquiry inbox</a></nav>
+{% set showing = guide and view == 'compose' and ((not guide.enquiry and not item and request.args.get('scenario') == guide.get('scenario','cylinder')) or (item and guide.enquiry == item.id)) %}
 <header class="case-head demo-heading">
-  <div><h1>Demo Email Inbox</h1><p>Practice receiving customer requests and replies in a synthetic mailbox.</p></div>
+  <div><h1>{{ 'Customer email' if showing else 'Demo Email Inbox' }}</h1><p>{{ 'Read the fictional customer’s message, then add it to the enquiry workspace.' if showing else 'Receive fictional requests and replies. All email stays in this demonstration.' }}</p></div>
   {% if not guide %}<form method="post" action="{{ url_for('start_demo') }}"><input name="csrf" type="hidden" value="{{ csrf }}"><button class="button" type="submit">Start fresh demo</button></form>{% endif %}
 </header>
-{% set showing = guide and view == 'compose' and ((not guide.enquiry and not item and request.args.get('scenario') == guide.get('scenario','cylinder')) or (item and guide.enquiry == item.id)) %}
 {% if not showing %}<nav class="section-nav" aria-label="Demo email tools">
-  {% for key, label in [('compose','Fictional email'), ('providers','Provider fixtures'), ('history','Message history')] %}
+  {% for key, label in [('compose','Fictional email'), ('providers','Gmail & Outlook examples'), ('history','Message history')] %}
   <a href="{{ url_for('demo_email', view=key if key != 'compose' else none) }}" {% if view == key %}aria-current="page"{% endif %}>{{ label }}</a>
   {% endfor %}
 </nav>{% endif %}
@@ -20,9 +22,9 @@
   {% set guide_page = 'reply' if item else 'receive' %}
   {% include 'guide.html' %}
 {% endif %}
-<div class="mail-layout">
+<div class="mail-layout{{ ' guided-intake' if showing }}">
   <section class="panel case-section mail-composer" id="compose" aria-labelledby="composer-title">
-    <h2 id="composer-title">{{ 'Compose a demo reply' if item else 'Create test email' }}</h2>
+    <h2 id="composer-title">{{ values.subject if showing else ('Compose a demo reply' if item else 'Create test email') }}</h2>
     {% if showing %}
       <p><strong>{{ values.customer }}</strong> · {{ values.sender }}</p>
     {% elif item %}
@@ -45,7 +47,7 @@
       {% if showing %}
         {% for key in ['customer','sender','recipient','subject','message_id'] %}<input type="hidden" name="{{ key }}" value="{{ values[key] }}">{% endfor %}
         {% if item %}<input type="hidden" name="reply_to" value="{{ item.id }}"><input type="hidden" name="revision" value="{{ values.revision }}">{% endif %}
-        <strong>{{ values.subject }}</strong>
+
       {% else %}
       {% if item %}<input name="reply_to" type="hidden" value="{{ item.id }}"><input name="revision" type="hidden" value="{{ values.revision }}">
       <input name="customer" type="hidden" value="{{ values.customer }}">
@@ -60,11 +62,12 @@
       <p class="hint" id="address-hint">Use fictional addresses ending in <code>.example</code>.</p>
       <label for="mail-subject">Subject</label><input id="mail-subject" name="subject" required maxlength="{{ 204 if item else 200 }}" value="{{ values.subject }}" {{ 'readonly' if item }}>
       {% endif %}
-      <label for="mail-body">Message</label><textarea id="mail-body" name="body" {{ 'readonly' if showing }} rows="6" maxlength="8000" required>{{ values.body }}</textarea>
+      {% if showing %}<p class="prepared-message">{{ values.body }}</p><input type="hidden" name="body" value="{{ values.body }}">
+      {% else %}<label for="mail-body">Message</label><textarea id="mail-body" name="body" rows="6" maxlength="8000" required>{{ values.body }}</textarea>{% endif %}
       {% if not showing %}<details class="mail-id"><summary>Message identifier</summary><p>VEE uses this identifier to recognise duplicate deliveries.</p>
         <label for="message-id">Message ID</label><input class="mono" id="message-id" name="message_id" value="{{ values.message_id }}" readonly>
       </details>{% endif %}
-      <button class="button primary" type="submit">{{ icon('mail',16) }} {{ 'Receive demo reply' if item else 'Receive test email' }}</button>
+      <button class="button primary" type="submit">{{ icon('mail',16) }} {{ 'Receive demo reply' if item else ('Open enquiry' if showing else 'Receive test email') }}</button>
     </form>
   </section>
   {% if not showing %}<div>
@@ -78,7 +81,7 @@
 {% else %}
     <section class="panel case-section mailbox-section" aria-labelledby="deliveries-title">
       <h2 id="deliveries-title">Demo message history <span class="count">{{ deliveries|length }}</span></h2>
-      <p class="subtle">Expand a received email to open its enquiry or replay the same delivery. Provider deliveries are listed under Provider fixtures.</p>
+      <p class="subtle">Expand a received email to open its enquiry or replay the same delivery. Gmail and Outlook examples have a separate delivery history.</p>
       {% if deliveries %}<ol class="mail-history">
       {% for row, message in deliveries %}<li><details>
         <summary><strong>{{ message.subject }}</strong><small>{{ 'Received' if message.direction == 'inbound' else 'Approved clarification' }} · {{ row.id }}</small></summary>

@@ -163,3 +163,23 @@ The browser exercised the cylinder guide at 1366 and 390 px with keyboard entry 
 Store and HTTP regressions cover all 45 references, restricted prices, unknown stock, zero stock, changed stock or price at partial approval, invalid partial edits, tampered backup quantities and refusal to serve an unapproved or superseded customer preview. A separate upgrade exercise created a draft and approved quotation using the code at `e01557a`, reopened them with V5, compared both complete records and histories, approved the old draft and verified a backup of the resulting database.
 
 All evaluation labels and records are synthetic. An observed first-time distributor user study remains outstanding.
+
+## V6 integration and delivery
+
+The merged V5 baseline was 6eb210f. Final checks used the repository virtual environment.
+
+| Command | Observed result |
+| --- | --- |
+| `ruff check vee tests scripts evaluation` | Passed |
+| `mypy --check-untyped-defs vee evaluation` | Passed across 15 source files |
+| `python -m unittest discover -v` | 105 passed, including import activation, recovery, customer account/version checks and legacy technical decisions |
+| `python -m evaluation.run` | 77/77 cases and 15/15 totals, zero false verified SKUs and zero unsafe-ready results |
+| `python -m evaluation.enquiries` | 16/16 deterministic and 16/16 offline mock cases |
+| `python -m scripts.browser_smoke` | Passed all five scenarios, customer preview, CSV workflows and original-workspace isolation |
+| `python -m pip check` | No broken requirements |
+
+The first integration unit run found generic feedback for a superseded customer link. The corrected page explains the unavailable version and still returns HTTP 409. All six customer-mode tests and the full suite passed after correction.
+
+The five guided browser cases checked NZD 58.65, NZD 316.25, NZD 67.62 with four outstanding, the blocked 350-bar request and the revised NZD 474.38 quote. The browser suite reopens the generated databases to compare saved totals and decisions. CSV tests cover missing prices, malformed rows, repeated files, a stale review, failed activation and historical snapshots. Separate V4 and V5 upgrade drills preserved historical quotes, approved a valid old draft, restarted the app and restored a backup. The V5 drill reopened a formerly approved unsafe cylinder match while retaining its historical snapshot.
+
+Captured 11 screens at each of 1440, 1024, 768, 390 and 320 pixels; the viewport check found no horizontal overflow. The 320-pixel quotation heading stays on one line. The sample bearing quotation printed on one A4 page with NZD 7.65 GST, NZD 58.65 total and unreserved stock terms.

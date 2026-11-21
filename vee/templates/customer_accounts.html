@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% from 'components.html' import icon %}
+{% block title %}Customer preview mode · {{ account }}{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='customer.css') }}">{% endblock %}
+{% block content %}
+<header class="customer-intro">
+  <div>
+    <p class="customer-context">{{ icon('building',16) }} Presenter-controlled local demonstration</p>
+    <h1>Customer preview mode</h1>
+    <p>Choose a fictional account to see its quotations. Account switching is a presenter control. No sign-in is required.</p>
+  </div>
+  <form action="{{ url_for('customer.accounts') }}" method="get" class="customer-switch">
+    <label for="customer-account">Fictional account</label>
+    <div><select id="customer-account" name="account">
+      {% for name in accounts %}<option value="{{ name }}" {% if name == account %}selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select><button class="button" type="submit">View account {{ icon('arrow-right',14) }}</button></div>
+  </form>
+</header>
+<section class="customer-ledger" aria-labelledby="selected-account">
+  <header class="customer-ledger-head">
+    <div><p class="customer-caption">Quotations prepared for</p><h2 id="selected-account">{{ account }}</h2></div>
+    <span class="customer-currency">NZD · Totals include GST</span>
+  </header>
+  {% macro documents(items, source) %}
+    <ul class="customer-documents">
+    {% for item in items %}
+      {% set q = item.quotes[-1] %}
+      {% set ref = ('EX-' if source == 'examples' else 'Q-') ~ item.id[4:] ~ '-V' ~ q.version %}
+      <li><a href="{{ url_for('customer.document', source=source, id=item.id, version=q.version, account=account) }}">
+        <span class="customer-file-icon">{{ icon('document-check',22) }}</span>
+        <div class="customer-doc-title"><span class="mono">{{ ref }}</span><strong>{{ item.subject }}</strong>
+        <span class="customer-doc-lines">{% for line in q.lines %}{{ line.quantity }} × {{ line.name }}{% if not loop.last %} · {% endif %}{% endfor %}</span></div>
+        <div class="customer-doc-total"><strong>NZD {{ q.total }}</strong><span>Approved · v{{ q.version }}</span></div>
+        <span class="customer-open" aria-hidden="true">{{ icon('arrow-right',18) }}</span>
+        <span class="sr">Open quotation {{ ref }}</span>
+      </a></li>
+    {% endfor %}
+    </ul>
+  {% endmacro %}
+  <section class="customer-group" aria-labelledby="workspace-quotes">
+    <h3 id="workspace-quotes">Current workspace quotations</h3>
+    {% if current %}{{ documents(current, workspace_source) }}
+    {% else %}<p>No current employee-approved quotation for this account in the {{ 'isolated demonstration' if demo_workspace else 'original' }} workspace.</p>{% endif %}
+  </section>
+  <section class="customer-group" aria-labelledby="sample-quotes">
+    <h3 id="sample-quotes">Prepared examples</h3>
+    <p>Approved in a separate synthetic workspace for this demonstration.</p>
+    {{ documents(examples, 'examples') }}
+  </section>
+</section>
+{% endblock %}

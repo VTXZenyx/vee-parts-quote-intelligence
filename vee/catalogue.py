@@ -22,8 +22,9 @@ class Part:
     name: str
     specs: dict[str, str]
     stock: int | None
-    price: str
+    price: str | None
     discontinued: bool = False
+    revision: int = 0
 
 
 def _cylinder(bore: int, stroke: int) -> dict[str, str]:
@@ -248,38 +249,46 @@ def _commercial(part: Part, account: str) -> Record:
     price_version = ORIGINAL_VERSION if part.sku in ORIGINAL_SKUS else VERSION
     if customer in CONTRACT_ONLY and contract_price:
         price_version = VERSION
+    commercial_source = (f"Synthetic CSV stock and price book / revision {part.revision}"
+                         if part.revision else f"Synthetic stock and price book / {price_version}")
+    if part.revision and contract_price:
+        commercial_source += f" · account agreement / {price_version}"
     return {
         "stock": part.stock,
         "availability": availability,
         "unit_price": price,
         "price_basis": "Account agreement"
         if contract_price
-        else ("List price" if price else "Contract price missing"),
+        else ("List price" if price else ("Contract price missing" if customer in CONTRACT_ONLY else "List price missing")),
         "delivery": "Delivery date unconfirmed",
-        "commercial_source": f"Synthetic stock and price book / {price_version}",
+        "commercial_source": commercial_source,
     }
 
 
 def _candidate(part: Part, account: str, evidence: list[str]) -> Record:
+    version = ORIGINAL_VERSION if part.sku in ORIGINAL_SKUS else VERSION
+    source = f"Synthetic catalogue / {version} / {part.sku}"
+    if part.revision:
+        source = f"Synthetic CSV catalogue / revision {part.revision} / {part.sku}"
     return {
         "sku": part.sku,
         "name": part.name,
         "family": part.family,
         "specs": dict(part.specs),
-        "source": f"Synthetic catalogue / {ORIGINAL_VERSION if part.sku in ORIGINAL_SKUS else VERSION} / {part.sku}",
+        "source": source,
         "evidence": evidence,
         "discontinued": part.discontinued,
         **_commercial(part, account),
     }
 
 
-def current_record(sku: str, account: str = "") -> Record | None:
-    part = BY_SKU.get(sku)
+def current_record(sku: str, account: str = "", *, parts: dict[str, Part] | None = None) -> Record | None:
+    part = (BY_SKU if parts is None else parts).get(sku)
     return _candidate(part, account, []) if part else None
 
 
-def catalogue(account: str = "") -> list[Record]:
-    return [_candidate(p, account, []) for p in BY_SKU.values()]
+def catalogue(account: str = "", *, parts: dict[str, Part] | None = None) -> list[Record]:
+    return [_candidate(p, account, []) for p in (BY_SKU if parts is None else parts).values()]
 
 
 def _line_texts(text: str) -> list[tuple[str, bool]]:
@@ -341,6 +350,13 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
     found: dict[str, set[str]] = {}
     residual = text
 
+    def measurement(number: str, unit: str) -> str:
+        # Remove formatting zeros without rounding to Decimal context precision.
+        number = format(Decimal(number), "f")
+        if "." in number:
+            number = number.rstrip("0").rstrip(".")
+        return number + unit
+
     def capture(
         field: str, pattern: str, suffix: str = "", fixed: str | None = None
     ) -> None:
@@ -349,12 +365,7 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
         def substitute(m: re.Match[str]) -> str:
             if fixed is None:
                 number = next(s for s in m.groups() if s is not None)
-                if suffix:
-                    # Strip formatting zeros without rounding a measurement to decimal context precision.
-                    number = format(Decimal(number), "f")
-                    if "." in number:
-                        number = number.rstrip("0").rstrip(".")
-                value = number + suffix
+                value = measurement(number, suffix) if suffix else number
             else:
                 value = fixed
             found.setdefault(field, set()).add(value)
@@ -362,20 +373,23 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
 
         residual = re.sub(pattern, substitute, residual, flags=re.IGNORECASE)
 
+    # Bind complete pairs in source order. Parsing one field at a time can take
+    # "32 mm bore" out of "stroke 32 mm bore 100 mm" and reverse both assignments.
+    label = r"(outside diameter|od|bore|stroke|width|length|pitch)"
     dimension = r"(\d+(?:\.\d+)?)\s*mm\b"
-    for key, label in (
-        ("bore", "bore"),
-        ("stroke", "stroke"),
-        ("width", "width"),
-        ("outside diameter", "(?:outside diameter|OD)"),
-        ("length", "length"),
-        ("pitch", "pitch"),
-    ):
-        capture(
-            key,
-            rf"\b{label}\s*[:=]?\s*{dimension}|(?<![\w./+-]){dimension}\s*{label}\b",
-            " mm",
-        )
+
+    def read_dimension(match: re.Match[str]) -> str:
+        field, number = (match[1], match[2]) if match[1] else (match[4], match[3])
+        field = field.casefold()
+        if field == "od":
+            field = "outside diameter"
+        found.setdefault(field, set()).add(measurement(number, " mm"))
+        return " "
+
+    residual = re.sub(
+        rf"\b{label}\s*[:=]?\s*{dimension}|(?<![\w./+-]){dimension}\s*{label}\b",
+        read_dimension, residual, flags=re.IGNORECASE,
+    )
     for field, forms in {
         "action": ["double acting", "single acting"],
         "mount": ["foot mount", "clevis mount", "flange mount"],
@@ -401,7 +415,7 @@ def _attributes(text: str) -> tuple[dict[str, str], set[str], str]:
     )
     for size in ("1/4", "3/8", "1/2"):
         capture("size", rf'(?<![\w/]){size}\s*(?:in(?:ch(?:es)?)?\b|")', fixed=f"{size} in")
-    capture("grade", r"\bgrade\s+(\d+\.\d+)\b")
+    capture("grade", r"\b(?:grade|property class)\s+(\d+\.\d+)\b")
     return (
         {k: " / ".join(sorted(v)) for k, v in found.items()},
         {k for k, v in found.items() if len(v) > 1},
@@ -416,7 +430,7 @@ def _compatible(key: str, value: str, part: Part) -> bool:
     return value == spec
 
 
-def _analyse_line(text: str, account: str, ambiguous: bool) -> Record:
+def _analyse_line(text: str, account: str, ambiguous: bool, parts: dict[str, Part]) -> Record:
     normal = text.lower().replace("–", "-").replace("‑", "-")
     references = [m.group().upper() for m in REFERENCE.finditer(normal)]
     families = {
@@ -434,11 +448,11 @@ def _analyse_line(text: str, account: str, ambiguous: bool) -> Record:
     unparsed = COURTESY.sub(" ", residual).strip()
     unknown_words = bool(re.search(r"[^\s,.:;!?()]", unparsed))
     ref = references[0] if len(references) == 1 else None
-    part = BY_SKU.get(ref or "")
+    part = parts.get(ref or "")
     pool = (
         [part]
         if part
-        else [p for p in BY_SKU.values() if p.family == family and not p.discontinued]
+        else [p for p in parts.values() if p.family == family and not p.discontinued]
     )
     candidates, compatible = [], []
     for product in pool:
@@ -533,7 +547,7 @@ def _analyse_line(text: str, account: str, ambiguous: bool) -> Record:
         status = "verified"
     sku = compatible[0].sku if status == "verified" else None
     if sku and quantity:
-        commercial = _commercial(BY_SKU[sku], account)
+        commercial = _commercial(parts[sku], account)
         if commercial["stock"] is None:
             issues.append("Warehouse availability unknown. Confirm stock with the supplier before quoting.")
         elif quantity > commercial["stock"]:
@@ -554,11 +568,12 @@ def _analyse_line(text: str, account: str, ambiguous: bool) -> Record:
     }
 
 
-def analyse(text: str, account: str = "") -> Record:
+def analyse(text: str, account: str = "", *, parts: dict[str, Part] | None = None) -> Record:
+    parts = BY_SKU if parts is None else parts
     if not isinstance(text, str) or len(text) > 65536:
         raise ValueError("Supply enquiry text up to 65,536 characters.")
     lines = [
-        _analyse_line(chunk, account, ambiguous)
+        _analyse_line(chunk, account, ambiguous, parts)
         for chunk, ambiguous in _line_texts(text)
     ]
     if len(lines) > 1 and re.search(r"\b(?:each|per|apiece)\b", text, re.IGNORECASE):
@@ -576,7 +591,7 @@ def analyse(text: str, account: str = "") -> Record:
             requested[line["sku"]] += line["quantity"]
     for line in lines:
         sku = line["sku"]
-        if sku and not line["issues"] and requested[sku] > (BY_SKU[sku].stock or 0):
+        if sku and not line["issues"] and requested[sku] > (parts[sku].stock or 0):
             line["issues"].append(
                 "Combined quantity exceeds confirmed stock for this reference."
             )
@@ -618,9 +633,10 @@ def partial_offer(analysis: Record) -> Record | None:
 
 def build_quote(
     analysis: Record, account: str = "", quantities: dict[str, int] | None = None,
-    *, partial: bool = False,
+    *, partial: bool = False, parts: dict[str, Part] | None = None,
 ) -> Record:
     """Price an entire verified enquiry. Callers supply analysis derived server-side."""
+    parts = BY_SKU if parts is None else parts
     offer = partial_offer(analysis) if partial else None
     if (not analysis.get("ready") and not offer) or not analysis.get("lines"):
         raise ValueError("Resolve every technical and commercial issue before quoting.")
@@ -629,7 +645,7 @@ def build_quote(
         sku, qty = line["sku"], line["quantity"]
         if (
             line["status"] != "verified"
-            or sku not in BY_SKU
+            or sku not in parts
             or type(qty) is not int
             or qty < 1
         ):
@@ -648,7 +664,7 @@ def build_quote(
     subtotal = Decimal("0.00")
     lines = []
     for sku, quantity in requested.items():
-        part = BY_SKU[sku]
+        part = parts[sku]
         commercial = _commercial(part, account)
         if (
             part.discontinued

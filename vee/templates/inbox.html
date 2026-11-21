@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% from 'components.html' import employee_styles %}
+{% block page_styles %}{{ employee_styles() }}{% endblock %}
 {% from 'stages.html' import stage_copy %}
 {% from 'components.html' import icon, status, date %}
 {% block content %}
@@ -12,35 +14,27 @@
   'approved': ['approved']
 } %}
 {% set filters = [('review','Needs attention','inbox'),('technical','Technical review','list-check'),
-                   ('awaiting','Waiting for customer','clock'),('quotes','Quotes to review','document-check'),
+                   ('awaiting','Waiting for customer','clock'),('quotes','Awaiting approval','document-check'),
                    ('blocked','Blocked','alert'),('approved','Completed','check')] %}
 {% set stage = request.args.get('stage', 'all') %}
 {% if stage not in groups %}{% set stage = 'all' %}{% endif %}
 {% set matching = rows if stage == 'all' else rows|selectattr('status','in',groups[stage])|list %}
-<header class="workspace-heading">
-  <div>
+<header class="desk-hero">
+  <div class="desk-welcome">
+    <p class="office-label">VEE Industrial Supplies · Hamilton</p>
     <h1>Enquiry workspace</h1>
-    <p>VEE Industrial Supplies · Hamilton, New Zealand · Fictional distributor</p>
-  </div>
-  <div class="stack">
-    <a class="button" href="{{ url_for('demo_email') }}#compose">{{ icon('mail',16) }} Create test email</a>
+    <p>Check customer requests, review parts and pricing, and prepare quotations.</p>
     {% if guide %}
-    <a class="button primary" href="{{ url_for('enquiry', id=guide.enquiry) if guide.enquiry else url_for('demo_email', scenario=guide.get('scenario','cylinder')) }}">Continue guided demo {{ icon('arrow-right',15) }}</a>
+      <a class="button primary" href="{{ url_for('enquiry', id=guide.enquiry) if guide.enquiry else url_for('demo_email', scenario=guide.get('scenario','cylinder')) }}">Continue demonstration {{ icon('arrow-right',16) }}</a>
+      <a class="hero-link" href="{{ url_for('showcase') }}">Choose another scenario</a>
+    {% else %}
+      <a class="button primary" href="{{ url_for('showcase') }}">Start a demonstration {{ icon('arrow-right',16) }}</a>
     {% endif %}
-    <form method="post" class="showcase-start" action="{{ url_for('start_demo') }}"><input name="csrf" type="hidden" value="{{ csrf }}">
-      <label for="showcase">Demonstration scenario</label>
-      <select name="scenario" id="showcase">{% for key,label in showcase.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>
-      <button class="button primary" name="guided" value="1">Start product demonstration {{ icon('arrow-right',15) }}</button>
-    </form>
   </div>
 </header>
-<details class="panel case-section"><summary>Distributor profile and warehouse policies</summary>
-<p>Our fictional Hamilton warehouse supplies bearings, pneumatic cylinders, hydraulic adapters and fasteners. Sales desk · quotes@vee.example.</p>
-<p>All inventory and prices are synthetic. Quotes use NZD net list or agreed account prices plus 15% GST. Contract-only accounts require an agreed rate. Stock is never reserved and delivery dates require supplier confirmation.</p></details>
-
-<nav class="metrics" aria-label="Filter enquiries by workflow stage">
-{% for key, label, symbol in filters %}
-  {% set total = all_rows|selectattr('status','in',groups[key])|list|length %}
+<nav class="metrics desk-metrics" aria-label="Filter enquiries by workflow stage">
+{% for key, label, symbol in filters if key in ['review','awaiting','quotes','blocked'] %}
+  {% set total = rows|selectattr('status','in',groups[key])|list|length %}
   <a class="metric metric-{{ key }}{% if stage == key %} selected{% endif %}" href="{{ url_for('inbox', stage=key, q=q or none) }}#enquiries"{% if stage == key %} aria-current="true"{% endif %}>
     <span class="metric-info"><span>{{ label }}</span><strong>{{ total }}</strong></span>
     <span class="metric-icon">{{ icon(symbol,18) }}</span>
@@ -56,13 +50,18 @@
     {% for key, label, _ in filters %}{% if key == stage %} · {{ label }}{% endif %}{% endfor %}
     {% if q %} · “{{ q }}”{% endif %}
     <a href="{{ url_for('inbox') }}#enquiries">Clear filters</a></p>{% endif %}</div>
-    <a class="button" href="{{ url_for('new_enquiry') }}">New enquiry</a>
+    <div class="queue-tools"><a class="text-link" href="{{ url_for('new_enquiry') }}">New enquiry</a>
     <form class="search" action="{{ url_for('inbox', _anchor='enquiries') }}" role="search">
       <input type="hidden" name="stage" value="{{ stage }}">
       {{ icon('search',17) }}<input type="search" name="q" value="{{ q }}" aria-label="Search subject, customer or enquiry ID" placeholder="Search enquiries…">
       <button class="search-submit" aria-label="Search">{{ icon('arrow-right',16) }}</button>
-    </form>
+    </form></div>
   </div>
+  <nav class="inbox-tabs" aria-label="Other enquiry views">
+    {% for key, label in [('all','All enquiries'),('technical','Technical review'),('approved','Completed')] %}
+      <a href="{{ url_for('inbox', stage=key if key != 'all' else none, q=q or none, _anchor='enquiries') }}" {% if stage == key %}aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
   {% if matching %}
   <table class="inbox-table">
     <thead><tr><th scope="col">Enquiry</th><th scope="col">Customer</th><th scope="col">Status</th><th scope="col">Received</th><th scope="col" class="row-open">Next action</th></tr></thead>
@@ -78,4 +77,8 @@
   <div class="empty"><span class="empty-icon">{{ icon('inbox',26) }}</span><h3>No matching enquiries</h3><p>{% if q %}No results for “{{ q }}” in this stage.{% else %}There are no enquiries in this stage.{% endif %}</p><a class="text-link" href="{{ url_for('inbox') }}">View all enquiries {{ icon('arrow-right',15) }}</a></div>
   {% endif %}
 </section>
+<details class="office-details"><summary>About this demonstration</summary>
+  <p>VEE Industrial Supplies is a fictional Hamilton distributor. Customers, stock, NZD prices and quotations are synthetic. Email is simulated locally and live integrations are disconnected.</p>
+  <p>Quotes include 15% GST. Contract-only accounts need an agreed price. Stock stays unreserved and delivery dates require supplier confirmation.</p>
+</details>
 {% endblock %}

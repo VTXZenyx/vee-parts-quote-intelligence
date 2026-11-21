@@ -25,18 +25,23 @@
   {% endif %}
   <table class="quote-table" role="table">
     <caption class="sr">Quoted products and amounts in {{ quote.currency }}</caption>
-    <thead role="rowgroup"><tr role="row"><th scope="col">Product</th><th scope="col">Requested</th><th scope="col">Quoted</th><th scope="col">Unit price</th><th scope="col">Line total</th></tr></thead>
+    <thead role="rowgroup"><tr role="row"><th scope="col">Product</th><th scope="col">Requested</th><th scope="col">Quoted</th><th scope="col">Net unit price</th><th scope="col">Net line total</th></tr></thead>
     <tbody role="rowgroup">
       {% for line in quote.lines %}<tr role="row">
         <th scope="row">
           <strong>{{ line.name }}</strong><small class="mono">{{ line.sku }}</small>
-          {% if line.requested_quantity is defined and line.quantity < line.requested_quantity %}<small class="issues">Partial quotation · {{ line.requested_quantity - line.quantity }} units outstanding</small>{% endif %}
+          {% if line.requested_quantity is defined and line.quantity < line.requested_quantity %}
+            {% set outstanding = line.requested_quantity - line.quantity %}
+            <small class="quantity-note">Partial quotation · {{ outstanding }} {{ 'unit' if outstanding == 1 else 'units' }} outstanding</small>
+          {% elif line.requested_quantity is defined and line.quantity > line.requested_quantity %}
+            <small class="quantity-note">Employee increased the quoted quantity above the customer request. Customer confirmation is outstanding.</small>
+          {% endif %}
           <small>{{ line.availability }}</small><small>{{ line.delivery or 'Delivery date unconfirmed' }}</small>
         </th>
         <td role="cell" class="requested-quantity"><span class="mobile-label" aria-hidden="true">Requested</span>{{ line.requested_quantity|default('Unrecorded') }}</td>
         <td role="cell" class="quoted-quantity"><span class="mobile-label" aria-hidden="true">Quoted</span>{{ line.quantity }}</td>
-        <td role="cell"><span class="mobile-label" aria-hidden="true">Unit price</span>{{ line.unit_price }}</td>
-        <td role="cell" class="line-total"><span class="mobile-label" aria-hidden="true">Line total</span>{{ line.line_total }}</td>
+        <td role="cell"><span class="mobile-label" aria-hidden="true">Net unit price</span>{{ line.unit_price }}</td>
+        <td role="cell" class="line-total"><span class="mobile-label" aria-hidden="true">Net line total</span>{{ line.line_total }}</td>
       </tr>{% endfor %}
     </tbody>
   </table>

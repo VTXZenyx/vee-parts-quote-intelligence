@@ -144,6 +144,7 @@ class ProviderMailTests(unittest.TestCase):
 
     def test_restore_v2_schema_and_upgrade_before_new_receipt(self):
         with sqlite3.connect(self.path) as db:
+            db.execute("DROP TABLE catalogue_imports")
             db.execute("DROP TABLE provider_mail")
             db.execute("PRAGMA user_version=2")
         restored = self.path.with_name("v2-restored")

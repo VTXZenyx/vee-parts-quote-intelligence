@@ -4,7 +4,7 @@ A local employee workspace for investigating industrial parts enquiries and revi
 
 ## Run locally
 
-Use Python 3.12. From the repository root:
+On a Mac with Python 3.12 installed, open Terminal in the repository and run:
 
 ```sh
 python3.12 -m venv .venv
@@ -16,9 +16,15 @@ Open the loopback address on port 5050 printed by Flask. On first run the server
 
 ## Start a product demonstration
 
-Open **Enquiry workspace**, choose a scenario and select **Start product demonstration**. Each run creates an isolated SQLite workspace. The default Harbour Packaging story takes a request for two replacement cylinders through clarification, technical verification, a draft, employee approval and a printable NZD 316.25 customer preview. The other stories cover a straightforward bearing order, a partial supply, an unsafe pressure request and a revised contract order.
+Open **Enquiry workspace**, select **Start a demonstration**, choose a scenario and select **Start scenario**. Each run creates an isolated SQLite workspace. The **Missing product information** Harbour Packaging story takes a request for two replacement cylinders through clarification, technical verification, a draft, employee approval and a printable NZD 316.25 customer preview. The other stories cover a straightforward bearing order, a partial supply, an unsafe pressure request and a revised contract order.
 
 The enquiry shows the customer’s request, the proposed part or missing details, commercial blockers and the employee decision. Expand the message analysis, catalogue evidence or histories for detail. **Exit guide** keeps the demo open. **Return to original workspace** brings back the original queue. Use the [five-minute presenter script and discovery questions](SHOWCASE.md).
+
+## Customer preview and catalogue import
+
+Open **Customer preview**, choose a fictional account and select **View account**. Open a quotation from the current workspace or a labelled prepared example. The displayed version must still have approval. The presenter controls account selection. Use the document’s Print button for an A4 copy.
+
+Open **Catalogue import** and choose **Open catalogue demo** if you are in the original workspace. Preview the supplied synthetic CSV, inspect the field differences, then explicitly confirm activation. The catalogue revision belongs to that demo database. **Return to original workspace** switches back. See [the CSV schema and walkthrough](CATALOGUE_IMPORT.md).
 
 ## Try the Demo Email Inbox
 

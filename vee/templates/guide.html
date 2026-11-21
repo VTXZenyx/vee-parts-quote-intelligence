@@ -1,33 +1,25 @@
-{% set scenario = guide.get('scenario','cylinder') %}
-{% set milestones = {
-  'receive': ('Customer email', 'Read the prepared request and receive it into this workspace.'),
-  'reply': ('Customer reply', 'Read the prepared reply and record it against this enquiry.'),
-  'needs_clarification': ('Review missing specifications', 'Check what is missing before approving the customer question.'),
-  'awaiting_reply': ('Customer clarification', 'Load the sample measurements and record the reply in this enquiry.'),
-  'needs_verification': ('Review the proposed part', 'Compare the customer requirements and catalogue specifications. Confirm each reference in Employee review.'),
-  'commercial_hold': ('Review the stock or pricing issue', 'Review the quantity on hand. A partial offer requires explicit acceptance and leaves the balance outstanding.'),
-  'verified': ('Prepare the quotation', 'Use the verified part and authorised account price to prepare the draft.'),
-  'draft_quote': ('Decide on the quotation', 'Check the requested and quoted quantities, account price and GST before approving this version.'),
-  'rejected': ('Revise the draft', 'Review the reason for rejection and save a new version.'),
-  'approved': ('Guided demo complete', 'Open the approved customer preview to review the document.')
-} %}
-{% set step = milestones[guide_page] %}
-<section class="guide no-print" id="guide" aria-labelledby="guide-title">
-  <div>
-    <p class="guide-label">Product demonstration · {{ {'receive':'Intake','needs_clarification':'Requirements','awaiting_reply':'Clarification','reply':'Clarification','needs_verification':'Technical review','commercial_hold':'Commercial review','verified':'Quotation','draft_quote':'Decision','rejected':'Revision','approved':'Approved'}[guide_page] }}</p>
-    <h2 id="guide-title">{% if guide_page == 'receive' %}Receive the {{ values.customer }} request{% elif guide_page == 'needs_clarification' and item.revised_request %}Review the revised order{% elif guide_page == 'needs_clarification' and scenario == 'conflict' %}Working pressure exceeds the rating{% else %}{{ step[0] }}{% endif %}</h2>
-    {% if guide_page == 'needs_clarification' and item.revised_request %}<p>Read the new quantity. Record why it replaces the previous requirements, then verify and approve a new version.</p>
-    {% elif guide_page == 'needs_clarification' and scenario == 'conflict' %}<p>350 bar exceeds the 250 bar catalogue rating. Leave the quotation blocked or ask for a confirmed requirement.</p>
-    {% else %}<p>{{ step[1] }}</p>{% endif %}
+{% set stage_number = {
+  'receive': 1, 'reply': 2, 'needs_clarification': 2, 'awaiting_reply': 2,
+  'needs_verification': 2, 'commercial_hold': 2, 'verified': 3,
+  'draft_quote': 4, 'rejected': 4, 'approved': 5
+}[guide_page] %}
+<section class="guide guide-progress no-print" id="guide" aria-labelledby="guide-title">
+  <div class="guide-top">
+    <div><p class="guide-label">Guided demonstration · Step {{ stage_number }} of 5</p><h2 id="guide-title">{{ guide_title }}</h2></div>
+    <details class="guide-options"><summary>Demo controls</summary>
+      <div>
+        <form method="post" action="{{ url_for('start_demo') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="scenario" value="{{ guide.get('scenario','cylinder') }}"><input type="hidden" name="guided" value="1"><button class="button compact">Restart in fresh workspace</button></form>
+        <a href="{{ url_for('showcase') }}">Choose another scenario</a>
+        <form method="post" action="{{ url_for('exit_guide') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button compact">Exit guide</button></form>
+      </div>
+    </details>
   </div>
-  <div class="stack">
-    {% if guide_page == 'awaiting_reply' and scenario in ['cylinder','conflict'] %}
-    <a class="button primary" href="{{ url_for('demo_email', reply_to=item.id, reply_example='pressure' if scenario == 'conflict' else 'cylinder') }}">Load the {{ 'corrected pressure' if scenario == 'conflict' else 'cylinder reply' }}</a>
-    {% elif guide_page == 'approved' %}
-    {% if scenario == 'contract' and item.quotes|length == 1 %}<a class="button" href="{{ url_for('demo_email', reply_to=item.id, reply_example='revision') }}">Receive revised order for three</a>{% endif %}
-    <a class="text-link" href="#activity">Inspect audit history</a>
-    {% endif %}
-    {% if guide_page not in ['receive','reply','awaiting_reply'] %}<a class="text-link" href="#employee-action">Go to employee action</a>{% endif %}
-    <form method="post" action="{{ url_for('exit_guide') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button compact">Exit guide</button></form>
-  </div>
+  <ol aria-label="Scenario progress">
+    {% for label in ['Request','Product review','Prepare quote','Approval','Preview'] %}
+      <li class="{{ 'reached' if loop.index <= stage_number }}" {% if loop.index == stage_number %}aria-current="step"{% endif %}>{{ label }}</li>
+    {% endfor %}
+  </ol>
+  {% if guide.get('scenario') == 'conflict' and guide_page == 'needs_clarification' and item.extraction.lines|selectattr('status','equalto','conflict')|list %}
+  <p class="guide-outcome">Quotation blocked. The fitting fails the customer’s pressure requirement. You can finish this example here or ask the customer to clarify.</p>
+  {% endif %}
 </section>

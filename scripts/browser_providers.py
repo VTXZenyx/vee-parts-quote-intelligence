@@ -5,7 +5,7 @@ from playwright.sync_api import Page, expect
 
 def exercise_providers(page: Page, address: str) -> None:
     page.goto(address + "/demo-email")
-    page.get_by_role("link", name="Provider fixtures").click()
+    page.get_by_role("link", name="Gmail & Outlook examples").click()
 
     def receive(key):
         page.get_by_label("Simulated provider message").select_option(key)
@@ -45,7 +45,7 @@ def exercise_providers(page: Page, address: str) -> None:
     state = page.locator("#conversation, #activity, #quotation")
     before = state.all_text_contents()
     page.goto(address + "/demo-email")
-    page.get_by_role("link", name="Provider fixtures").click()
+    page.get_by_role("link", name="Gmail & Outlook examples").click()
     reply.locator("summary").first.click()
     reply.get_by_role("button", name="Replay provider delivery").click()
     expect(page.get_by_role("status")).to_contain_text("Duplicate")

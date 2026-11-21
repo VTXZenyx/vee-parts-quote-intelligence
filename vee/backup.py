@@ -13,9 +13,11 @@ from pathlib import Path
 
 from vee import findings
 from vee.catalogue import partial_offer
+from vee.catalogue_import import published_revision
+from vee.catalogue_import import verify_history as verify_catalogue_history
 from vee.extraction import validate
 from vee.provider_mail import normalise
-from vee.store import ALLOWED, SCHEMA, V2_SCHEMA
+from vee.store import ALLOWED, SCHEMA, SCHEMA_VERSION, V2_SCHEMA, V3_SCHEMA
 
 
 def _fields(value: object, **schema: type) -> dict:
@@ -199,7 +201,13 @@ def _verify_findings(item: dict) -> None:
             raise ValueError("An outstanding correction needs customer clarification.")
 
 
-def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None:
+def _verify_evidence_revision(record: dict, active: int) -> None:
+    revision = record.get("catalogue_revision", 0)
+    if type(revision) is not int or not 0 <= revision <= active:
+        raise ValueError("Saved evidence references an unavailable catalogue revision.")
+
+
+def _verify_history(database: sqlite3.Connection, key: str, state: dict, catalogue_revision: int) -> None:
     events = database.execute(
         "SELECT revision, action, detail FROM events WHERE enquiry_id=? ORDER BY revision",
         (key,),
@@ -248,6 +256,7 @@ def _verify_history(database: sqlite3.Connection, key: str, state: dict) -> None
                 raise ValueError("A saved quotation version is missing.")
             quote_reference = _verify_quote(version, row[1])
             quote = json.loads(row[1])
+            _verify_evidence_revision(quote, catalogue_revision)
             if quote.get("partial_offer") != active_partial:
                 raise ValueError("Partial quotation differs from the employee decision.")
             if active_partial:
@@ -293,7 +302,9 @@ def _verify_snapshot(database: sqlite3.Connection) -> None:
     database.execute("PRAGMA trusted_schema=OFF")
     with closing(sqlite3.connect(":memory:")) as reference:
         version = database.execute("PRAGMA user_version").fetchone()[0]
-        reference.executescript(V2_SCHEMA if version < 3 else SCHEMA)
+        if not 0 <= version <= SCHEMA_VERSION:
+            raise ValueError("Unsupported VEE workspace version.")
+        reference.executescript(SCHEMA if version == SCHEMA_VERSION else V3_SCHEMA if version == 3 else V2_SCHEMA)
         if (
             database.execute(objects).fetchall()
             != reference.execute(objects).fetchall()
@@ -310,12 +321,16 @@ def _verify_snapshot(database: sqlite3.Connection) -> None:
         "SELECT 1 FROM quotes WHERE enquiry_id IS NULL LIMIT 1"
     ).fetchone():
         raise ValueError("An audit event or quote lacks its owning enquiry.")
+    if version == SCHEMA_VERSION:
+        verify_catalogue_history(database)
+    catalogue_revision = published_revision(database) if version == SCHEMA_VERSION else 0
     sources: dict[tuple[str, str], tuple[str, dict]] = {}
     for key, revision, raw in database.execute(
         "SELECT id,revision,state FROM enquiries"
     ):
         state = _verify_enquiry(raw, key, revision)
-        _verify_history(database, key, state)
+        _verify_evidence_revision(state, catalogue_revision)
+        _verify_history(database, key, state, catalogue_revision)
         _verify_findings(state)
         for message in state["thread"]:
             if "provider" in message:

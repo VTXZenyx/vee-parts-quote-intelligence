@@ -137,3 +137,58 @@ class Intake(unittest.TestCase):
             key = store.receive(self.path, str(uuid4()), "Kauri Engineering", subject,
                                 "1 x ADP-BSPP-14, working pressure 0.500 bar")
             self.assertEqual(store.detail(self.path, key)["status"], expected)
+
+    def test_omitted_technical_fields_survive_a_reconciled_same_family_request(self):
+        cases = [
+            ("ADP-BSPP-14", "5000 psi", "pressure", "working pressure 200 bar"),
+            ("BLT-M12-50-G88", "property class 12.9", "grade", "grade 8.8"),
+            ("CYL-32-100-DA", "1.5 inches bore", "bore", "bore 32 mm"),
+            ("BRG-6205-2RS", "stainless steel", "material", None),
+        ]
+        for sku, original_requirement, field, confirmation in cases:
+            with self.subTest(field=field):
+                body = f"1 x {sku}"
+                key = store.receive(self.path, str(uuid4()), "Kauri Engineering", "RFQ",
+                                    f"{body}, {original_requirement}")
+                item = store.detail(self.path, key)
+                for amended, expected in [(body, "needs_clarification")] + (
+                    [(f"{body}, {confirmation}", "needs_verification")] if confirmation else []
+                ):
+                    for action, fields in [
+                        ("approve_clarification", {}),
+                        ("simulate_reply", {"body": "Revised request: " + amended}),
+                        ("reconcile_requirements", {"reason": "Checked the revised order."}),
+                    ]:
+                        item = store.act(self.path, key, action, {"revision": item["revision"], **fields})
+                    self.assertEqual(item["status"], expected)
+                    if expected == "needs_clarification":
+                        self.assertIn(field, item["clarification"])
+                        with self.assertRaises(ValueError):
+                            store.act(self.path, key, "verify_match", {"revision": item["revision"], "sku": sku})
+
+    def test_upgrade_reopens_v5_approval_with_reversed_dimensions(self):
+        import sqlite3
+
+        sku = "CYL-32-100-DA"
+        key = store.receive(self.path, str(uuid4()), "Kauri Engineering", "RFQ", f"1 x {sku}")
+        item = store.detail(self.path, key)
+        for action, fields in (("verify_match", {"sku": sku}), ("create_quote", {}), ("approve_quote", {})):
+            item = store.act(self.path, key, action, {"revision": item["revision"], **fields})
+        # V5 approved this text after it bound both dimensions to the wrong field.
+        v5_request = f"1 x {sku}, stroke 32 mm bore 100 mm"
+        with sqlite3.connect(self.path) as db:
+            db.execute("UPDATE enquiries SET state=json_set(state,'$.body',?,'$.thread[0].body',?) WHERE id=?",
+                       (v5_request, v5_request, key))
+            db.execute("PRAGMA user_version=3")
+            original_snapshot = db.execute("SELECT snapshot FROM quotes WHERE enquiry_id=?", (key,)).fetchone()[0]
+        store.init(self.path)
+        reopened = store.detail(self.path, key)
+        self.assertEqual(reopened["status"], "needs_clarification")
+        self.assertEqual(reopened["history"][:-1], item["history"])
+        self.assertFalse(reopened["selected_skus"])
+        with sqlite3.connect(self.path) as db:
+            self.assertEqual(db.execute("SELECT snapshot FROM quotes WHERE enquiry_id=?", (key,)).fetchone()[0],
+                             original_snapshot)
+        self.assertEqual(self.client.get(f"/enquiries/{key}/customer-preview").status_code, 409)
+        store.init(self.path)
+        self.assertEqual(store.detail(self.path, key), reopened)

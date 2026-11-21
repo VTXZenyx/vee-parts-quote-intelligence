@@ -3,6 +3,7 @@
 import json
 
 from vee import store
+from vee.catalogue_import import active_parts
 from vee.extraction import extract
 
 
@@ -26,10 +27,18 @@ def select(item, source):
     return source, identity, subject, message["body"]
 
 
-def displayed(item, source):
+def _displayed(db, item, source):
     source, identity, subject, body = select(item, source)
     saved = item.get("advisories", {}).get(source)
-    return source, saved or extract(identity, body, subject=subject)
+    if saved:
+        return source, saved
+    parts = active_parts(db, item.get("catalogue_revision", 0))
+    return source, extract(identity, body, subject=subject, account=item["customer"], parts=parts)
+
+
+def displayed(path, item, source):
+    with store._transaction(path) as db:
+        return _displayed(db, item, source)
 
 
 def check_revision(item, revision):
@@ -40,12 +49,14 @@ def check_revision(item, revision):
 
 
 def process(path, key, fields):
-    item = store.detail(path, key)
-    check_revision(item, fields.get("revision"))
-    source, identity, subject, body = select(item, fields.get("source"))
+    with store._transaction(path) as db:
+        item = store._load(db, key)
+        check_revision(item, fields.get("revision"))
+        source, identity, subject, body = select(item, fields.get("source"))
+        parts = active_parts(db, item.get("catalogue_revision", 0))
     # Await the optional external service outside the database write transaction.
     result = extract(
-        identity, body, fields.get("mode", "deterministic"), subject=subject
+        identity, body, fields.get("mode", "deterministic"), subject=subject, account=item["customer"], parts=parts
     )
     with store._transaction(path, write=True) as db:
         item = store._load(db, key)
@@ -61,7 +72,7 @@ def review(path, key, fields):
     with store._transaction(path, write=True) as db:
         item = store._load(db, key)
         check_revision(item, fields.get("revision"))
-        source, result = displayed(item, fields.get("source"))
+        source, result = _displayed(db, item, fields.get("source"))
         index = fields.get("finding")
         if index not in {str(i) for i in range(len(result["findings"]))}:
             raise ValueError("Choose a finding from this message.")
@@ -85,7 +96,7 @@ def review(path, key, fields):
                 }
             )
             item.update(selected_skus=[], selected_sku=None)
-            store._investigate(item)
+            store._investigate(db, item)
             action = "recheck_requirements"
         result.setdefault("reviews", {})[index] = note
         item.setdefault("advisories", {})[source] = result
